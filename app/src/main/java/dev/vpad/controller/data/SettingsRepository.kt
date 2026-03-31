@@ -22,14 +22,23 @@ data class VPadSettings(
     val overlayOpacity: Float = 0.75f,
     val buttonScale: Float   = 1.0f,
 
-    val pillX: Int = 16,
-    val pillY: Int = 32,
+    val pillX: Int = -1,
+    val pillY: Int = -1,
 
     // Dynamic map of button IDs to their X,Y offset
     val layoutOffsets: Map<String, Pair<Float, Float>> = emptyMap(),
+    
+    val activeProfileName: String = "Default",
+    val savedProfiles: Map<String, Map<String, Pair<Float, Float>>> = emptyMap(),
+    
     val pcKeyMap: Map<Int, Int> = emptyMap(),
     
-    val editMode: Boolean = false
+    val editMode: Boolean = false,
+    val hapticsEnabled: Boolean = true,
+    
+    val gyroEnabled: Boolean = false,
+    val gyroSensitivity: Float = 1.0f,
+    val gyroInvertY: Boolean = false
 )
 
 class SettingsRepository(private val context: Context) {
@@ -47,10 +56,19 @@ class SettingsRepository(private val context: Context) {
 
         // Format is "id:x,y|id2:x,y"
         val LAYOUT_OFFSETS = stringPreferencesKey("layout_offsets")
+        
+        val ACTIVE_PROFILE = stringPreferencesKey("active_profile")
+        val SAVED_PROFILE_NAMES = androidx.datastore.preferences.core.stringSetPreferencesKey("saved_profile_names")
+        
         // Format is "gamepadKey:pcKey|gamepadKey2:pcKey2"
         val PC_KEY_MAP     = stringPreferencesKey("pc_key_map")
         
         val EDIT_MODE = androidx.datastore.preferences.core.booleanPreferencesKey("edit_mode")
+        val HAPTICS_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("haptics_enabled")
+        
+        val GYRO_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("gyro_enabled")
+        val GYRO_SENSITIVITY = androidx.datastore.preferences.core.floatPreferencesKey("gyro_sensitivity")
+        val GYRO_INVERT_Y = androidx.datastore.preferences.core.booleanPreferencesKey("gyro_invert_y")
     }
 
     private fun parseLayout(str: String?): Map<String, Pair<Float, Float>> {
@@ -93,6 +111,16 @@ class SettingsRepository(private val context: Context) {
     }
 
     val settings: Flow<VPadSettings> = context.dataStore.data.map { prefs ->
+        val profileNames = prefs[Keys.SAVED_PROFILE_NAMES] ?: emptySet()
+        val profilesMap = mutableMapOf<String, Map<String, Pair<Float, Float>>>()
+        for (name in profileNames) {
+            val key = stringPreferencesKey("profile_$name")
+            val data = prefs[key]
+            if (!data.isNullOrEmpty()) {
+                profilesMap[name] = parseLayout(data)
+            }
+        }
+
         VPadSettings(
             inputMode     = prefs[Keys.INPUT_MODE]     ?: 0,
             sensitivity   = prefs[Keys.SENSITIVITY]    ?: 1.0f,
@@ -100,11 +128,17 @@ class SettingsRepository(private val context: Context) {
             curveExponent = prefs[Keys.CURVE_EXPONENT] ?: 1.4f,
             overlayOpacity = prefs[Keys.OPACITY]       ?: 0.75f,
             buttonScale   = prefs[Keys.BUTTON_SCALE]   ?: 1.0f,
-            pillX         = prefs[Keys.PILL_X]         ?: 16,
-            pillY         = prefs[Keys.PILL_Y]         ?: 32,
+            pillX         = prefs[Keys.PILL_X]         ?: -1,
+            pillY         = prefs[Keys.PILL_Y]         ?: -1,
             layoutOffsets = parseLayout(prefs[Keys.LAYOUT_OFFSETS]),
+            activeProfileName = prefs[Keys.ACTIVE_PROFILE] ?: "Custom",
+            savedProfiles = profilesMap,
             pcKeyMap      = parsePcKeyMap(prefs[Keys.PC_KEY_MAP]),
-            editMode      = prefs[Keys.EDIT_MODE]      ?: false
+            editMode      = prefs[Keys.EDIT_MODE]      ?: false,
+            hapticsEnabled = prefs[Keys.HAPTICS_ENABLED] ?: true,
+            gyroEnabled   = prefs[Keys.GYRO_ENABLED]   ?: false,
+            gyroSensitivity = prefs[Keys.GYRO_SENSITIVITY] ?: 1.0f,
+            gyroInvertY   = prefs[Keys.GYRO_INVERT_Y]  ?: false
         )
     }
 
@@ -132,5 +166,48 @@ class SettingsRepository(private val context: Context) {
         prefs[Keys.PC_KEY_MAP] = encodePcKeyMap(current)
     }
 
-    suspend fun toggleEditMode(enabled: Boolean) = context.dataStore.edit { it[Keys.EDIT_MODE] = enabled }
+    // Profile Management
+    suspend fun saveCurrentLayoutAsProfile(name: String) = context.dataStore.edit { prefs ->
+        val names = (prefs[Keys.SAVED_PROFILE_NAMES] ?: emptySet()).toMutableSet()
+        names.add(name)
+        prefs[Keys.SAVED_PROFILE_NAMES] = names
+        
+        val currentLayoutStr = prefs[Keys.LAYOUT_OFFSETS] ?: ""
+        val profileKey = stringPreferencesKey("profile_$name")
+        prefs[profileKey] = currentLayoutStr
+        prefs[Keys.ACTIVE_PROFILE] = name
+    }
+
+    suspend fun deleteProfile(name: String) = context.dataStore.edit { prefs ->
+        val names = (prefs[Keys.SAVED_PROFILE_NAMES] ?: emptySet()).toMutableSet()
+        names.remove(name)
+        prefs[Keys.SAVED_PROFILE_NAMES] = names
+        
+        val profileKey = stringPreferencesKey("profile_$name")
+        prefs.remove(profileKey)
+        
+        if (prefs[Keys.ACTIVE_PROFILE] == name) {
+            prefs[Keys.ACTIVE_PROFILE] = "Custom"
+        }
+    }
+
+    suspend fun loadProfile(name: String) = context.dataStore.edit { prefs ->
+        val profileKey = stringPreferencesKey("profile_$name")
+        val layout = prefs[profileKey]
+        if (!layout.isNullOrEmpty()) {
+            prefs[Keys.LAYOUT_OFFSETS] = layout
+            prefs[Keys.ACTIVE_PROFILE] = name
+        }
+    }
+
+    suspend fun toggleEditMode(enabled: Boolean) = context.dataStore.edit { 
+        it[Keys.EDIT_MODE] = enabled 
+        if (enabled) {
+            it[Keys.ACTIVE_PROFILE] = "Custom"
+        }
+    }
+    suspend fun updateHapticsEnabled(enabled: Boolean) = context.dataStore.edit { it[Keys.HAPTICS_ENABLED] = enabled }
+    suspend fun updateGyroEnabled(enabled: Boolean) = context.dataStore.edit { it[Keys.GYRO_ENABLED] = enabled }
+    suspend fun updateGyroSensitivity(v: Float) = context.dataStore.edit { it[Keys.GYRO_SENSITIVITY] = v }
+    suspend fun updateGyroInvertY(enabled: Boolean) = context.dataStore.edit { it[Keys.GYRO_INVERT_Y] = enabled }
 }

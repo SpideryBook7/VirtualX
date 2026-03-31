@@ -23,8 +23,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
@@ -56,6 +58,19 @@ fun AtomicControl(
     
     var dragPos by remember(initialX, initialY) { mutableStateOf(Offset(initialX, initialY)) }
 
+    // Synchronize dragPos when a new profile is loaded from Settings
+    val storedOffset = settings.layoutOffsets[id]
+    LaunchedEffect(storedOffset) {
+        if (storedOffset != null) {
+            val dx = kotlin.math.abs(storedOffset.first - dragPos.x)
+            val dy = kotlin.math.abs(storedOffset.second - dragPos.y)
+            // If the settings offset differs significantly from the current drag pos (Profile load), override
+            if (dx > 5f || dy > 5f) {
+                dragPos = Offset(storedOffset.first, storedOffset.second)
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .wrapContentSize()
@@ -79,24 +94,24 @@ fun AtomicControl(
         when (id) {
             "analog_left" -> AnalogStick(MotionEvent.AXIS_X, MotionEvent.AXIS_Y, inputProcessor, scale, alpha, editMode)
             
-            "dpad_up"     -> GameButton("↑", KeyEvent.KEYCODE_DPAD_UP, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode)
-            "dpad_down"   -> GameButton("↓", KeyEvent.KEYCODE_DPAD_DOWN, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode)
-            "dpad_left"   -> GameButton("←", KeyEvent.KEYCODE_DPAD_LEFT, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode)
-            "dpad_right"  -> GameButton("→", KeyEvent.KEYCODE_DPAD_RIGHT, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode)
+            "dpad_up"     -> GameButton("↑", KeyEvent.KEYCODE_DPAD_UP, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled)
+            "dpad_down"   -> GameButton("↓", KeyEvent.KEYCODE_DPAD_DOWN, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled)
+            "dpad_left"   -> GameButton("←", KeyEvent.KEYCODE_DPAD_LEFT, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled)
+            "dpad_right"  -> GameButton("→", KeyEvent.KEYCODE_DPAD_RIGHT, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled)
             
-            "btn_a"       -> GameButton("A", KeyEvent.KEYCODE_BUTTON_A, inputProcessor, Color(0xFF3CB371), alpha, scale, editMode)
-            "btn_b"       -> GameButton("B", KeyEvent.KEYCODE_BUTTON_B, inputProcessor, Color(0xFFDC3545), alpha, scale, editMode)
-            "btn_x"       -> GameButton("X", KeyEvent.KEYCODE_BUTTON_X, inputProcessor, Color(0xFF4169E1), alpha, scale, editMode)
-            "btn_y"       -> GameButton("Y", KeyEvent.KEYCODE_BUTTON_Y, inputProcessor, Color(0xFFDAA520), alpha, scale, editMode)
+            "btn_a"       -> GameButton("A", KeyEvent.KEYCODE_BUTTON_A, inputProcessor, Color(0xFF3CB371), alpha, scale, editMode, settings.hapticsEnabled)
+            "btn_b"       -> GameButton("B", KeyEvent.KEYCODE_BUTTON_B, inputProcessor, Color(0xFFDC3545), alpha, scale, editMode, settings.hapticsEnabled)
+            "btn_x"       -> GameButton("X", KeyEvent.KEYCODE_BUTTON_X, inputProcessor, Color(0xFF4169E1), alpha, scale, editMode, settings.hapticsEnabled)
+            "btn_y"       -> GameButton("Y", KeyEvent.KEYCODE_BUTTON_Y, inputProcessor, Color(0xFFDAA520), alpha, scale, editMode, settings.hapticsEnabled)
             
-            "btn_l1"      -> GameButton("LB", KeyEvent.KEYCODE_BUTTON_L1, inputProcessor, Color(0xFF3A3A4A), alpha, scale, editMode)
-            "btn_r1"      -> GameButton("RB", KeyEvent.KEYCODE_BUTTON_R1, inputProcessor, Color(0xFF3A3A4A), alpha, scale, editMode)
-            "btn_l2"      -> TriggerButton("LT", MotionEvent.AXIS_LTRIGGER, KeyEvent.KEYCODE_BUTTON_L2, inputProcessor, alpha, scale, editMode)
-            "btn_r2"      -> TriggerButton("RT", MotionEvent.AXIS_RTRIGGER, KeyEvent.KEYCODE_BUTTON_R2, inputProcessor, alpha, scale, editMode)
+            "btn_l1"      -> GameButton("LB", KeyEvent.KEYCODE_BUTTON_L1, inputProcessor, Color(0xFF3A3A4A), alpha, scale, editMode, settings.hapticsEnabled)
+            "btn_r1"      -> GameButton("RB", KeyEvent.KEYCODE_BUTTON_R1, inputProcessor, Color(0xFF3A3A4A), alpha, scale, editMode, settings.hapticsEnabled)
+            "btn_l2"      -> TriggerButton("LT", MotionEvent.AXIS_LTRIGGER, KeyEvent.KEYCODE_BUTTON_L2, inputProcessor, alpha, scale, editMode, settings.hapticsEnabled)
+            "btn_r2"      -> TriggerButton("RT", MotionEvent.AXIS_RTRIGGER, KeyEvent.KEYCODE_BUTTON_R2, inputProcessor, alpha, scale, editMode, settings.hapticsEnabled)
             
-            "btn_rm"      -> GameButton("RM", InputProcessor.KEYCODE_RM, inputProcessor, Color(0xFF6A5ACD), alpha, scale * 0.9f, editMode)
-            "btn_select"  -> GameButton("⊟", KeyEvent.KEYCODE_BUTTON_SELECT, inputProcessor, Color(0xFF2A2A3A), alpha, scale, editMode)
-            "btn_start"   -> GameButton("⊞", KeyEvent.KEYCODE_BUTTON_START, inputProcessor, Color(0xFF2A2A3A), alpha, scale, editMode)
+            "btn_rm"      -> GameButton("RM", InputProcessor.KEYCODE_RM, inputProcessor, Color(0xFF6A5ACD), alpha, scale * 0.9f, editMode, settings.hapticsEnabled)
+            "btn_select"  -> GameButton("⊟", KeyEvent.KEYCODE_BUTTON_SELECT, inputProcessor, Color(0xFF2A2A3A), alpha, scale, editMode, settings.hapticsEnabled)
+            "btn_start"   -> GameButton("⊞", KeyEvent.KEYCODE_BUTTON_START, inputProcessor, Color(0xFF2A2A3A), alpha, scale, editMode, settings.hapticsEnabled)
         }
         
         if (editMode) {
@@ -112,8 +127,14 @@ fun TogglePill(
     onToggleVisibility: (Boolean) -> Unit,
     onToggleEditMode: (Boolean) -> Unit,
     onDrag: (Offset) -> Unit,
-    onDragEnd: () -> Unit
+    onDragEnd: () -> Unit,
+    onConfigChange: () -> Unit = {}
 ) {
+    val configuration = LocalConfiguration.current
+    LaunchedEffect(configuration) {
+        onConfigChange()
+    }
+
     val editMode = settings.editMode
     var showMenu by remember { mutableStateOf(false) }
 
@@ -200,9 +221,8 @@ fun AnalogStick(axisX: Int, axisY: Int, inputProcessor: InputProcessor, scale: F
 }
 
 @Composable
-fun TriggerButton(label: String, axisCode: Int, keyCode: Int, inputProcessor: InputProcessor, overlayAlpha: Float, scale: Float, isEditMode: Boolean) {
-    val context  = LocalContext.current
-    val vibrator = remember { context.getSystemService(Vibrator::class.java) }
+fun TriggerButton(label: String, axisCode: Int, keyCode: Int, inputProcessor: InputProcessor, overlayAlpha: Float, scale: Float, isEditMode: Boolean, hapticsEnabled: Boolean) {
+    val view = LocalView.current
     var isPressed by remember { mutableStateOf(false) }
 
     Box(
@@ -221,7 +241,9 @@ fun TriggerButton(label: String, axisCode: Int, keyCode: Int, inputProcessor: In
                                 isPressed = down
                                 inputProcessor.updateAxis(axisCode, if (down) 1.0f else 0.0f)
                                 inputProcessor.updateButton(keyCode, down)
-                                if (down && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) vibrator?.vibrate(VibrationEffect.createOneShot(18, VibrationEffect.DEFAULT_AMPLITUDE))
+                                if (down && hapticsEnabled) {
+                                    view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                }
                             }
                         }
                     }
@@ -234,9 +256,8 @@ fun TriggerButton(label: String, axisCode: Int, keyCode: Int, inputProcessor: In
 }
 
 @Composable
-fun GameButton(label: String, keyCode: Int, inputProcessor: InputProcessor, color: Color, overlayAlpha: Float, scale: Float, isEditMode: Boolean) {
-    val context  = LocalContext.current
-    val vibrator = remember { context.getSystemService(Vibrator::class.java) }
+fun GameButton(label: String, keyCode: Int, inputProcessor: InputProcessor, color: Color, overlayAlpha: Float, scale: Float, isEditMode: Boolean, hapticsEnabled: Boolean) {
+    val view = LocalView.current
     var isPressed by remember { mutableStateOf(false) }
 
     Box(
@@ -253,7 +274,9 @@ fun GameButton(label: String, keyCode: Int, inputProcessor: InputProcessor, colo
                             if (down != isPressed) {
                                 isPressed = down
                                 inputProcessor.updateButton(keyCode, down)
-                                if (down && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) vibrator?.vibrate(VibrationEffect.createOneShot(12, VibrationEffect.DEFAULT_AMPLITUDE))
+                                if (down && hapticsEnabled) {
+                                    view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                }
                             }
                         }
                     }

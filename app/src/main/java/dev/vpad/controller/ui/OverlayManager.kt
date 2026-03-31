@@ -20,6 +20,7 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import dev.vpad.controller.data.SettingsRepository
 import dev.vpad.controller.data.VPadSettings
 import dev.vpad.controller.input.InputProcessor
+import dev.vpad.controller.input.GyroManager
 import dev.vpad.controller.ui.compose.AtomicControl
 import dev.vpad.controller.ui.compose.TogglePill
 import dev.vpad.controller.ui.theme.VPadTheme
@@ -42,12 +43,13 @@ class OverlayManager(
     private val activeWindows = mutableMapOf<String, ComposeView>()
     private var pillView: ComposeView? = null
 
-    // By default, HIDDEN as per user request
     private val controlsVisible = mutableStateOf(false)
     private val currentSettings = mutableStateOf(VPadSettings())
+    private var lastScreenWidth = 0
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val repo  = SettingsRepository(context)
+    private val gyroManager = GyroManager(context, inputProcessor)
 
     private val lifecycleRegistry = LifecycleRegistry(this)
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
@@ -73,6 +75,11 @@ class OverlayManager(
         scope.launch {
             repo.settings.collectLatest { settings ->
                 currentSettings.value = settings
+                
+                gyroManager.sensitivity = settings.gyroSensitivity
+                gyroManager.invertY = settings.gyroInvertY
+                gyroManager.isEnabled = settings.gyroEnabled && (controlsVisible.value || settings.editMode)
+                
                 if (activeWindows.isEmpty()) {
                     if (controlsVisible.value || settings.editMode) createAllWindows()
                 } else {
@@ -93,11 +100,6 @@ class OverlayManager(
         } else {
             @Suppress("DEPRECATION")
             windowManager.defaultDisplay.getRealSize(point)
-        }
-        if (point.y > point.x) {
-            val tmp = point.x
-            point.x = point.y
-            point.y = tmp
         }
         return point
     }
@@ -156,6 +158,10 @@ class OverlayManager(
             return
         }
 
+        val screen = getRealScreenSize()
+        val rotated = lastScreenWidth != 0 && lastScreenWidth != screen.x
+        lastScreenWidth = screen.x
+
         if (activeWindows.isEmpty()) {
             createAllWindows()
             return
@@ -171,6 +177,21 @@ class OverlayManager(
             try {
                 windowManager.updateViewLayout(view, params)
             } catch (e: Exception) {}
+        }
+
+        pillView?.let { pill ->
+            val params = pill.layoutParams as? WindowManager.LayoutParams
+            if (params != null) {
+                if (rotated) {
+                    params.x = screen.x / 2 - 150
+                    params.y = 50
+                    scope.launch { repo.updatePillPosition(params.x, params.y) }
+                } else {
+                    params.x = params.x.coerceIn(0, screen.x - 350)
+                    params.y = params.y.coerceIn(0, screen.y - 150)
+                }
+                try { windowManager.updateViewLayout(pill, params) } catch (e: Exception) {}
+            }
         }
     }
 
@@ -198,7 +219,11 @@ class OverlayManager(
                 TogglePill(
                     isVisible = controlsVisible.value,
                     settings  = currentSettings.value,
-                    onToggleVisibility = { controlsVisible.value = it; updateAllWindowPositions() },
+                    onToggleVisibility = { 
+                        controlsVisible.value = it
+                        gyroManager.isEnabled = currentSettings.value.gyroEnabled && it
+                        updateAllWindowPositions() 
+                    },
                     onToggleEditMode = { scope.launch { repo.toggleEditMode(it) } },
                     onDrag = { drag ->
                         (pillView?.layoutParams as? WindowManager.LayoutParams)?.let { p ->
@@ -208,17 +233,23 @@ class OverlayManager(
                     },
                     onDragEnd = { (pillView?.layoutParams as? WindowManager.LayoutParams)?.let { p ->
                         scope.launch { repo.updatePillPosition(p.x, p.y) }
-                    } }
+                    } },
+                    onConfigChange = { updateAllWindowPositions() }
                 )
             }
         }
         windowManager.addView(pillView, buildParams(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, "pill").apply {
-            x = currentSettings.value.pillX
-            y = currentSettings.value.pillY
+            val screen = getRealScreenSize()
+            val savedX = currentSettings.value.pillX
+            val savedY = currentSettings.value.pillY
+            
+            x = if (savedX < 0) screen.x / 2 - 150 else savedX.coerceIn(0, screen.x - 350)
+            y = if (savedY < 0) 50 else savedY.coerceIn(0, screen.y - 150)
         })
     }
 
     fun hideOverlay() {
+        gyroManager.isEnabled = false
         removeAllControls()
         pillView?.let { try { windowManager.removeView(it) } catch (e: Exception) {} }
         pillView = null

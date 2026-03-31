@@ -135,6 +135,21 @@ fun SettingsScreen(
                     formatted = { "%.1f".format(it) },
                     onChanged = { scope.launch { repo.updateCurveExponent(it) } }
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Haptic Feedback", color = VPadOnSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text("Vibrate on button press", color = VPadOnSurface.copy(alpha = 0.5f), fontSize = 11.sp)
+                    }
+                    Switch(
+                        checked = settings.hapticsEnabled,
+                        onCheckedChange = { scope.launch { repo.updateHapticsEnabled(it) } },
+                        colors = SwitchDefaults.colors(checkedThumbColor = VPadPrimary, checkedTrackColor = VPadPrimary.copy(alpha = 0.3f))
+                    )
+                }
             }
 
             SettingsSection(title = "Overlay Appearance") {
@@ -181,6 +196,121 @@ fun SettingsScreen(
                         onCheckedChange = { scope.launch { repo.toggleEditMode(it) } },
                         colors = SwitchDefaults.colors(checkedThumbColor = VPadPrimary, checkedTrackColor = VPadPrimary.copy(alpha = 0.3f))
                     )
+                }
+            }
+
+            SettingsSection(title = "Gyroscope Aiming") {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Enable Gyroscope", color = VPadOnSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text("Steer camera by tilting device", color = VPadOnSurface.copy(alpha = 0.5f), fontSize = 11.sp)
+                    }
+                    Switch(
+                        checked = settings.gyroEnabled,
+                        onCheckedChange = { scope.launch { repo.updateGyroEnabled(it) } },
+                        colors = SwitchDefaults.colors(checkedThumbColor = VPadPrimary, checkedTrackColor = VPadPrimary.copy(alpha = 0.3f))
+                    )
+                }
+
+                if (settings.gyroEnabled) {
+                    SettingsSlider(
+                        label = "Gyro Sensitivity",
+                        value = settings.gyroSensitivity,
+                        range = 0.1f..4.0f,
+                        formatted = { "%.1fx".format(it) },
+                        onChanged = { scope.launch { repo.updateGyroSensitivity(it) } }
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Invert Y-Axis", color = VPadOnSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Text("Reverse up/down tilt", color = VPadOnSurface.copy(alpha = 0.5f), fontSize = 11.sp)
+                        }
+                        Switch(
+                            checked = settings.gyroInvertY,
+                            onCheckedChange = { scope.launch { repo.updateGyroInvertY(it) } },
+                            colors = SwitchDefaults.colors(checkedThumbColor = VPadPrimary, checkedTrackColor = VPadPrimary.copy(alpha = 0.3f))
+                        )
+                    }
+                }
+            }
+
+            SettingsSection(title = "Layout Profiles") {
+                var newProfileName by remember { mutableStateOf("") }
+                var showNewProfileDialog by remember { mutableStateOf(false) }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Active Profile", color = VPadOnSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text(settings.activeProfileName, color = VPadPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Button(onClick = { showNewProfileDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = VPadPrimary)) {
+                        Text("Save As New", fontSize = 12.sp)
+                    }
+                }
+
+                if (settings.savedProfiles.isNotEmpty()) {
+                    HorizontalDivider(color = Color(0xFF2A2A3A).copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 8.dp))
+                    settings.savedProfiles.keys.forEach { profileName ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(profileName, color = VPadOnSurface, fontSize = 14.sp)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton(onClick = { scope.launch { repo.loadProfile(profileName) } }) {
+                                    Text("Load", color = VPadPrimary)
+                                }
+                                TextButton(onClick = { scope.launch { repo.deleteProfile(profileName) } }) {
+                                    Text("Delete", color = Color(0xFFDC3545))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (showNewProfileDialog) {
+                    Dialog(onDismissRequest = { showNewProfileDialog = false }) {
+                        Surface(shape = RoundedCornerShape(16.dp), color = Color(0xFF2A2A3A)) {
+                            Column(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                Text("New Profile Name", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                OutlinedTextField(
+                                    value = newProfileName,
+                                    onValueChange = { newProfileName = it },
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White,
+                                        focusedBorderColor = VPadPrimary,
+                                        unfocusedBorderColor = VPadOnSurface.copy(alpha=0.5f)
+                                    )
+                                )
+                                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                                    TextButton(onClick = { showNewProfileDialog = false }) { Text("Cancel", color = VPadOnSurface) }
+                                    TextButton(onClick = { 
+                                        val nameToSave = newProfileName.trim()
+                                        if (nameToSave.isNotBlank()) {
+                                            scope.launch { repo.saveCurrentLayoutAsProfile(nameToSave) }
+                                            showNewProfileDialog = false
+                                            newProfileName = ""
+                                        }
+                                    }) { Text("Save", color = VPadPrimary) }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -250,8 +380,11 @@ fun SettingsScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable { 
-                                        scope.launch { repo.updatePcKeyMapping(showKeyPickerFor!!, keyCode) }
-                                        showKeyPickerFor = null 
+                                        val selectedKey = showKeyPickerFor
+                                        if (selectedKey != null) {
+                                            scope.launch { repo.updatePcKeyMapping(selectedKey, keyCode) }
+                                            showKeyPickerFor = null 
+                                        }
                                     }
                                     .padding(vertical = 14.dp, horizontal = 12.dp)
                             )
