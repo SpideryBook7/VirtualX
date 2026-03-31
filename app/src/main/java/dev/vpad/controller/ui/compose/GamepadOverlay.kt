@@ -1,0 +1,263 @@
+package dev.vpad.controller.ui.compose
+
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.view.KeyEvent
+import android.view.MotionEvent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import dev.vpad.controller.data.VPadSettings
+import dev.vpad.controller.input.InputProcessor
+import kotlin.math.pow
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
+
+/**
+ * Atomic Floating Widget (Phase 20 - Direct Drag Optimization).
+ * Real-time drag coordinates are passed directly to WindowManager to eliminate Datastore IO lag.
+ */
+@Composable
+fun AtomicControl(
+    id: String,
+    initialX: Float,
+    initialY: Float,
+    inputProcessor: InputProcessor,
+    settings: VPadSettings,
+    onDrag: (Float, Float) -> Unit = {_,_ -> },
+    onDragEnd: (Pair<Float, Float>) -> Unit = {}
+) {
+    val scale = settings.buttonScale
+    val alpha = settings.overlayOpacity
+    val editMode = settings.editMode
+    
+    var dragPos by remember(initialX, initialY) { mutableStateOf(Offset(initialX, initialY)) }
+
+    Box(
+        modifier = Modifier
+            .wrapContentSize()
+            .then(
+                if (editMode) {
+                    Modifier
+                        .background(Color.Yellow.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                        .pointerInput(id) {
+                            detectDragGestures(
+                                onDragEnd = { onDragEnd(Pair(dragPos.x, dragPos.y)) }
+                            ) { change, dragAmount ->
+                                change.consume()
+                                dragPos += dragAmount
+                                onDrag(dragPos.x, dragPos.y)
+                            }
+                        }
+                } else Modifier
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        when (id) {
+            "analog_left" -> AnalogStick(MotionEvent.AXIS_X, MotionEvent.AXIS_Y, inputProcessor, scale, alpha, editMode)
+            
+            "dpad_up"     -> GameButton("↑", KeyEvent.KEYCODE_DPAD_UP, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode)
+            "dpad_down"   -> GameButton("↓", KeyEvent.KEYCODE_DPAD_DOWN, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode)
+            "dpad_left"   -> GameButton("←", KeyEvent.KEYCODE_DPAD_LEFT, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode)
+            "dpad_right"  -> GameButton("→", KeyEvent.KEYCODE_DPAD_RIGHT, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode)
+            
+            "btn_a"       -> GameButton("A", KeyEvent.KEYCODE_BUTTON_A, inputProcessor, Color(0xFF3CB371), alpha, scale, editMode)
+            "btn_b"       -> GameButton("B", KeyEvent.KEYCODE_BUTTON_B, inputProcessor, Color(0xFFDC3545), alpha, scale, editMode)
+            "btn_x"       -> GameButton("X", KeyEvent.KEYCODE_BUTTON_X, inputProcessor, Color(0xFF4169E1), alpha, scale, editMode)
+            "btn_y"       -> GameButton("Y", KeyEvent.KEYCODE_BUTTON_Y, inputProcessor, Color(0xFFDAA520), alpha, scale, editMode)
+            
+            "btn_l1"      -> GameButton("LB", KeyEvent.KEYCODE_BUTTON_L1, inputProcessor, Color(0xFF3A3A4A), alpha, scale, editMode)
+            "btn_r1"      -> GameButton("RB", KeyEvent.KEYCODE_BUTTON_R1, inputProcessor, Color(0xFF3A3A4A), alpha, scale, editMode)
+            "btn_l2"      -> TriggerButton("LT", MotionEvent.AXIS_LTRIGGER, KeyEvent.KEYCODE_BUTTON_L2, inputProcessor, alpha, scale, editMode)
+            "btn_r2"      -> TriggerButton("RT", MotionEvent.AXIS_RTRIGGER, KeyEvent.KEYCODE_BUTTON_R2, inputProcessor, alpha, scale, editMode)
+            
+            "btn_rm"      -> GameButton("RM", InputProcessor.KEYCODE_RM, inputProcessor, Color(0xFF6A5ACD), alpha, scale * 0.9f, editMode)
+            "btn_select"  -> GameButton("⊟", KeyEvent.KEYCODE_BUTTON_SELECT, inputProcessor, Color(0xFF2A2A3A), alpha, scale, editMode)
+            "btn_start"   -> GameButton("⊞", KeyEvent.KEYCODE_BUTTON_START, inputProcessor, Color(0xFF2A2A3A), alpha, scale, editMode)
+        }
+        
+        if (editMode) {
+            Text("✥", color = Color.Yellow, fontSize = 12.sp, modifier = Modifier.align(Alignment.TopEnd).padding(4.dp))
+        }
+    }
+}
+
+@Composable
+fun TogglePill(
+    isVisible: Boolean,
+    settings: VPadSettings,
+    onToggleVisibility: (Boolean) -> Unit,
+    onToggleEditMode: (Boolean) -> Unit,
+    onDrag: (Offset) -> Unit,
+    onDragEnd: () -> Unit
+) {
+    val editMode = settings.editMode
+    var showMenu by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (editMode) Color(0xDD222200) else Color(0xDA000000))
+            .pointerInput(Unit) {
+                detectDragGestures(onDragEnd = onDragEnd) { change, dragAmount ->
+                    change.consume()
+                    showMenu = false
+                    onDrag(dragAmount)
+                }
+            }
+            .pointerInput(editMode, isVisible) {
+                detectTapGestures(onTap = { if (!editMode) showMenu = !showMenu })
+            }
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        if (editMode) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("✥ Mueve Menu", color = Color.Yellow, fontSize = 13.sp)
+                Button(onClick = { onToggleEditMode(false) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D4FF))) {
+                    Text("Guardar", fontSize = 12.sp)
+                }
+            }
+        } else if (showMenu) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                TextButton(onClick = { showMenu = false; onToggleVisibility(!isVisible) }, contentPadding = PaddingValues(horizontal = 4.dp)) {
+                    Text(if (isVisible) "👁️ Ocultar" else "👁️ Mostrar", color = Color.White, fontSize = 13.sp)
+                }
+                TextButton(onClick = { showMenu = false; onToggleEditMode(true) }, contentPadding = PaddingValues(horizontal = 4.dp)) {
+                    Text("✏️ Editar", color = Color(0xFF00D4FF), fontSize = 13.sp)
+                }
+            }
+        } else {
+            Text("🎮 V-PAD", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+fun AnalogStick(axisX: Int, axisY: Int, inputProcessor: InputProcessor, scale: Float, alpha: Float, isEditMode: Boolean) {
+    val baseDp     = (100 * scale).dp
+    val thumbDp    = (40 * scale).dp
+    val density    = LocalDensity.current
+    val baseRadius = with(density) { (baseDp / 2).toPx() }
+    var thumbOffset by remember { mutableStateOf(Offset.Zero) }
+
+    Box(
+        modifier = Modifier
+            .size(baseDp)
+            .clip(CircleShape)
+            .background(Brush.radialGradient(listOf(Color(0x33FFFFFF), Color(0x11FFFFFF))))
+            .pointerInput(isEditMode) {
+                if (!isEditMode) {
+                    detectDragGestures(
+                        onDragStart  = { thumbOffset = Offset.Zero },
+                        onDragEnd    = { 
+                            thumbOffset = Offset.Zero
+                            inputProcessor.updateAxes(mapOf(axisX to 0f, axisY to 0f))
+                        },
+                        onDragCancel = { 
+                            thumbOffset = Offset.Zero
+                            inputProcessor.updateAxes(mapOf(axisX to 0f, axisY to 0f))
+                        },
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            val raw  = thumbOffset + dragAmount
+                            val dist = sqrt(raw.x.pow(2) + raw.y.pow(2))
+                            thumbOffset = if (dist <= baseRadius) raw else raw * (baseRadius / dist)
+                            val normX = (thumbOffset.x / baseRadius).coerceIn(-1.05f, 1.05f)
+                            val normY = (thumbOffset.y / baseRadius).coerceIn(-1.05f, 1.05f)
+                            inputProcessor.updateAxes(mapOf(axisX to normX, axisY to normY))
+                        }
+                    )
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(modifier = Modifier.size(thumbDp).offset { IntOffset(thumbOffset.x.roundToInt(), thumbOffset.y.roundToInt()) }.clip(CircleShape).background(Color.White.copy(alpha=0.85f)))
+    }
+}
+
+@Composable
+fun TriggerButton(label: String, axisCode: Int, keyCode: Int, inputProcessor: InputProcessor, overlayAlpha: Float, scale: Float, isEditMode: Boolean) {
+    val context  = LocalContext.current
+    val vibrator = remember { context.getSystemService(Vibrator::class.java) }
+    var isPressed by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .width((64 * scale).dp)
+            .height((28 * scale).dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFF222233).copy(alpha = 0.8f))
+            .pointerInput(isEditMode) {
+                if (!isEditMode) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val down  = event.changes.any { it.pressed }
+                            if (down != isPressed) {
+                                isPressed = down
+                                inputProcessor.updateAxis(axisCode, if (down) 1.0f else 0.0f)
+                                inputProcessor.updateButton(keyCode, down)
+                                if (down && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) vibrator?.vibrate(VibrationEffect.createOneShot(18, VibrationEffect.DEFAULT_AMPLITUDE))
+                            }
+                        }
+                    }
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = (12 * scale).sp)
+    }
+}
+
+@Composable
+fun GameButton(label: String, keyCode: Int, inputProcessor: InputProcessor, color: Color, overlayAlpha: Float, scale: Float, isEditMode: Boolean) {
+    val context  = LocalContext.current
+    val vibrator = remember { context.getSystemService(Vibrator::class.java) }
+    var isPressed by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .size((50 * scale).dp)
+            .clip(CircleShape)
+            .background(color.copy(alpha = 0.8f))
+            .pointerInput(isEditMode) {
+                if (!isEditMode) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val down  = event.changes.any { it.pressed }
+                            if (down != isPressed) {
+                                isPressed = down
+                                inputProcessor.updateButton(keyCode, down)
+                                if (down && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) vibrator?.vibrate(VibrationEffect.createOneShot(12, VibrationEffect.DEFAULT_AMPLITUDE))
+                            }
+                        }
+                    }
+                }
+            },
+        contentAlignment = Alignment.Center) { Text(label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = (13 * scale).sp, textAlign = TextAlign.Center) }
+}
