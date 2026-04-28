@@ -63,7 +63,7 @@ class GyroManager(
         val rzAxis = (rawY * multiplier).coerceIn(-1.0f, 1.0f)
 
         // Inject all current axes state together
-        inputProcessor.updateAxes(mapOf(MotionEvent.AXIS_Z to zAxis, MotionEvent.AXIS_RZ to rzAxis))
+        inputProcessor.updateAxes(mapOf(MotionEvent.AXIS_Z to zAxis, MotionEvent.AXIS_RZ to rzAxis), isHardwareGyro = true)
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {

@@ -1,15 +1,22 @@
-*.iml
+# Android & Gradle ignore patterns
+# Built directories
+/build
+/app/build
+/captures
+/.cxx
+/.externalNativeBuild
+
+# Gradle files
 .gradle
 /local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
+
+# IDE & project files
+*.iml
+.idea/
 .DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-local.properties
+
+# Miscellaneous
+*.log
+*.apk
+*.ap_
+*.aab

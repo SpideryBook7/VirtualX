@@ -57,7 +57,7 @@ class OverlayManager(
     override val savedStateRegistry: SavedStateRegistry get() = savedStateRegistryController.savedStateRegistry
 
     private val CONTROL_IDS = listOf(
-        "analog_left", "dpad_up", "dpad_down", "dpad_left", "dpad_right",
+        "analog_left", "analog_right", "dpad_up", "dpad_down", "dpad_left", "dpad_right",
         "btn_a", "btn_b", "btn_x", "btn_y",
         "btn_l1", "btn_l2", "btn_r1", "btn_r2", "btn_rm",
         "btn_select", "btn_start"
@@ -262,6 +262,8 @@ class OverlayManager(
         
         return when (id) {
             "analog_left" -> Pair(w * 0.08f, h * 0.70f)
+            "analog_right"-> Pair(w * 0.75f, h * 0.70f)
+            
             "dpad_up"     -> Pair(w * 0.14f, h * 0.45f)
             "dpad_down"   -> Pair(w * 0.14f, h * 0.65f)
             "dpad_left"   -> Pair(w * 0.08f, h * 0.55f)

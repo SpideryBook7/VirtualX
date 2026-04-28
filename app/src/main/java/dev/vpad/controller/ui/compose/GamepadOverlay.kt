@@ -93,6 +93,7 @@ fun AtomicControl(
     ) {
         when (id) {
             "analog_left" -> AnalogStick(MotionEvent.AXIS_X, MotionEvent.AXIS_Y, inputProcessor, scale, alpha, editMode)
+            "analog_right"-> AnalogStick(MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ, inputProcessor, scale, alpha, editMode)
             
             "dpad_up"     -> GameButton("↑", KeyEvent.KEYCODE_DPAD_UP, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled)
             "dpad_down"   -> GameButton("↓", KeyEvent.KEYCODE_DPAD_DOWN, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled)

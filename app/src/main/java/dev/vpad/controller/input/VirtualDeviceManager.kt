@@ -70,6 +70,23 @@ object VirtualDeviceManager {
         event.recycle()
     }
 
+    fun injectMouseEvent(dx: Float, dy: Float, buttonState: Int = 0) {
+        val now = SystemClock.uptimeMillis()
+        val coords = arrayOf(MotionEvent.PointerCoords().apply {
+            setAxisValue(MotionEvent.AXIS_RELATIVE_X, dx)
+            setAxisValue(MotionEvent.AXIS_RELATIVE_Y, dy)
+        })
+        val props = arrayOf(MotionEvent.PointerProperties().apply { id = 0; toolType = MotionEvent.TOOL_TYPE_MOUSE })
+        
+        // SOURCE_MOUSE_RELATIVE (Added in API 26) ensures relative deltas are dispatched cleanly to games like GeForce Now without screen-jumping
+        // Value of InputDevice.SOURCE_MOUSE_RELATIVE is 0x00020004
+        val source = 131076
+        
+        val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_MOVE, 1, props, coords, 0, buttonState, 1f, 1f, VIRTUAL_DEVICE_ID, 0, source, 0)
+        inject(event)
+        event.recycle()
+    }
+
     private fun inject(event: InputEvent) {
         val method = injectMethod ?: return
         val instance = iimInstance ?: return

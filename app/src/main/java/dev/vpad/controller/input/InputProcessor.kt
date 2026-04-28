@@ -41,26 +41,32 @@ class InputProcessor {
 
     private val pcStickState = mutableSetOf<Int>()
 
-    fun updateAxes(axes: Map<Int, Float>) {
+    fun updateAxes(axes: Map<Int, Float>, isHardwareGyro: Boolean = false) {
         if (inputMode == 1) {
-            handlePcAxes(axes)
+            handlePcAxes(axes, isHardwareGyro)
         } else {
             // Native Gamepad fallback
-            val processedAxes = axes.mapValues { (_, value) -> applyCurves(value) }
+            val processedAxes = axes.mapValues { (_, value) -> applyCurves(value, isHardwareGyro) }
             if (processedAxes.isNotEmpty()) {
-                VirtualDeviceManager.injectAxisEvent(processedAxes, source = InputDevice.SOURCE_JOYSTICK)
+                // To ensure Maximum GFN Gamepad compatibility, use Gamepad | Joystick source
+                val source = InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_JOYSTICK
+                VirtualDeviceManager.injectAxisEvent(processedAxes, source = source)
             }
         }
     }
 
-    private fun applyCurves(value: Float): Float {
+    private fun applyCurves(value: Float, isHardwareGyro: Boolean): Float {
+        // Gyroscope angular speeds are extremely small, don't kill them with the 8% analog stick deadzone.
+        // Use a tiny 1% flat deadzone to prevent standing noise drift instead.
+        val actualDeadZone = if (isHardwareGyro) 0.01f else deadZone
+        
         val magnitude = abs(value)
-        if (magnitude < deadZone) return 0f
-        val normalized = (magnitude - deadZone) / (1f - deadZone)
+        if (magnitude < actualDeadZone) return 0f
+        val normalized = (magnitude - actualDeadZone) / (1f - actualDeadZone)
         return (normalized.pow(sensitivityCurve) * sign(value)).coerceIn(-1f, 1f)
     }
 
-    private fun handlePcAxes(axes: Map<Int, Float>) {
+    private fun handlePcAxes(axes: Map<Int, Float>, isHardwareGyro: Boolean) {
         // Left Stick -> WASD
         if (axes.containsKey(MotionEvent.AXIS_X) || axes.containsKey(MotionEvent.AXIS_Y)) {
             val x = axes[MotionEvent.AXIS_X] ?: 0f
@@ -70,6 +76,24 @@ class InputProcessor {
             updatePcKey(KeyEvent.KEYCODE_S, y > threshold)
             updatePcKey(KeyEvent.KEYCODE_A, x < -threshold)
             updatePcKey(KeyEvent.KEYCODE_D, x > threshold)
+        }
+
+        // Right Stick / Gyroscope -> Relative Mouse Look
+        if (axes.containsKey(MotionEvent.AXIS_Z) || axes.containsKey(MotionEvent.AXIS_RZ)) {
+            val z = axes[MotionEvent.AXIS_Z] ?: 0f
+            val rz = axes[MotionEvent.AXIS_RZ] ?: 0f
+            
+            // Map the processed analog curve to mouse pixel deltas directly. 
+            // 40.0f is our base multiplier for "full stick" turning speed per tick.
+            val processedZ = applyCurves(z, isHardwareGyro)
+            val processedRz = applyCurves(rz, isHardwareGyro)
+            
+            val dx = processedZ * 40f
+            val dy = processedRz * 40f
+            
+            if (dx != 0f || dy != 0f) {
+                VirtualDeviceManager.injectMouseEvent(dx, dy)
+            }
         }
     }
 
