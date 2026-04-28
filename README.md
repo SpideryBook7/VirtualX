@@ -11,6 +11,22 @@
 - Persistent profile management (multiple control profiles).
 - Jetpack Compose UI with smooth animations.
 
+## Screenshots
+
+| Home | In-Game |
+| :---: | :---: |
+| ![Home](screens/Home.jpeg) | ![In-Game](screens/InGame.jpeg) |
+
+| Settings | Keyboard/gamepad |
+| :---: | :---: |
+| ![Settings](screens/Settings.jpeg) | ![Edit Controls](screens/Keys.jpeg) |
+
+| Edit Controls | Profiles |
+| :---: | :---: |
+| ![Settings](screens/EditControls.jpeg) | ![Profiles](screens/Profiles.jpeg) |
+
+Disclaimer: Games shown in screenshots are for demonstration purposes only and belong to their respective owners.
+
 ## Getting Started
 
 1. **Prerequisites**
