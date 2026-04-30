@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Divider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
@@ -50,7 +51,8 @@ fun AtomicControl(
     inputProcessor: InputProcessor,
     settings: VPadSettings,
     onDrag: (Float, Float) -> Unit = {_,_ -> },
-    onDragEnd: (Pair<Float, Float>) -> Unit = {}
+    onDragEnd: (Pair<Float, Float>) -> Unit = {},
+    onRemove: () -> Unit = {}
 ) {
     val scale = settings.buttonScale
     val alpha = settings.overlayOpacity
@@ -94,6 +96,7 @@ fun AtomicControl(
         when (id) {
             "analog_left" -> AnalogStick(MotionEvent.AXIS_X, MotionEvent.AXIS_Y, inputProcessor, scale, alpha, editMode)
             "analog_right"-> AnalogStick(MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ, inputProcessor, scale, alpha, editMode)
+            "trackpad"    -> Trackpad(MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ, inputProcessor, scale, alpha, editMode)
             
             "dpad_up"     -> GameButton("↑", KeyEvent.KEYCODE_DPAD_UP, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled)
             "dpad_down"   -> GameButton("↓", KeyEvent.KEYCODE_DPAD_DOWN, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled)
@@ -116,7 +119,20 @@ fun AtomicControl(
         }
         
         if (editMode) {
-            Text("✥", color = Color.Yellow, fontSize = 12.sp, modifier = Modifier.align(Alignment.TopEnd).padding(4.dp))
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 8.dp, y = (-8).dp)
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(Color.Red)
+                    .pointerInput(Unit) {
+                        detectTapGestures { onRemove() }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("×", color = Color.White, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
@@ -127,6 +143,8 @@ fun TogglePill(
     settings: VPadSettings,
     onToggleVisibility: (Boolean) -> Unit,
     onToggleEditMode: (Boolean) -> Unit,
+    onUpdateInputMode: (Int) -> Unit,
+    onAddControl: (String) -> Unit = {},
     onDrag: (Offset) -> Unit,
     onDragEnd: () -> Unit,
     onConfigChange: () -> Unit = {}
@@ -157,19 +175,49 @@ fun TogglePill(
         contentAlignment = Alignment.Center
     ) {
         if (editMode) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("✥ Mueve Menu", color = Color.Yellow, fontSize = 13.sp)
-                Button(onClick = { onToggleEditMode(false) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D4FF))) {
-                    Text("Guardar", fontSize = 12.sp)
+            val allControls = listOf("analog_left", "trackpad", "dpad_up", "dpad_down", "dpad_left", "dpad_right", "btn_a", "btn_b", "btn_x", "btn_y", "btn_l1", "btn_l2", "btn_r1", "btn_r2", "btn_rm", "btn_select", "btn_start")
+            val currentActive = if (settings.activeControls.isEmpty()) allControls else settings.activeControls
+            val missing = allControls.filter { !currentActive.contains(it) }
+            
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text("✥ Mueve Menu", color = Color.Yellow, fontSize = 13.sp)
+                    Button(onClick = { onToggleEditMode(false) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D4FF))) {
+                        Text("Guardar", fontSize = 12.sp)
+                    }
+                }
+                if (missing.isNotEmpty()) {
+                    Divider(color = Color.DarkGray, modifier = Modifier.fillMaxWidth(0.8f).padding(vertical = 4.dp))
+                    Text("Añadir control:", color = Color.Gray, fontSize = 10.sp)
+                    // limit to 4 to prevent pill from getting too big
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        missing.take(4).forEach { id ->
+                            Button(onClick = { onAddControl(id) }, colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) {
+                                Text(id.replace("btn_", "").replace("dpad_", ""), fontSize = 10.sp)
+                            }
+                        }
+                    }
                 }
             }
         } else if (showMenu) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                TextButton(onClick = { showMenu = false; onToggleVisibility(!isVisible) }, contentPadding = PaddingValues(horizontal = 4.dp)) {
-                    Text(if (isVisible) "👁️ Ocultar" else "👁️ Mostrar", color = Color.White, fontSize = 13.sp)
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("MODE SELECT", color = Color.Gray, fontSize = 10.sp)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    TextButton(onClick = { onUpdateInputMode(0) }) {
+                        Text("🎮 X-INPUT", color = if (settings.inputMode == 0) Color(0xFF00FF00) else Color.White, fontSize = 12.sp)
+                    }
+                    TextButton(onClick = { onUpdateInputMode(1) }) {
+                        Text("⌨️ PC", color = if (settings.inputMode == 1) Color(0xFF00FF00) else Color.White, fontSize = 12.sp)
+                    }
                 }
-                TextButton(onClick = { showMenu = false; onToggleEditMode(true) }, contentPadding = PaddingValues(horizontal = 4.dp)) {
-                    Text("✏️ Editar", color = Color(0xFF00D4FF), fontSize = 13.sp)
+                Divider(color = Color.DarkGray, modifier = Modifier.fillMaxWidth(0.8f).padding(vertical = 4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TextButton(onClick = { showMenu = false; onToggleVisibility(!isVisible) }, contentPadding = PaddingValues(horizontal = 4.dp)) {
+                        Text(if (isVisible) "👁️ Ocultar" else "👁️ Mostrar", color = Color.White, fontSize = 13.sp)
+                    }
+                    TextButton(onClick = { showMenu = false; onToggleEditMode(true) }, contentPadding = PaddingValues(horizontal = 4.dp)) {
+                        Text("✏️ Editar", color = Color(0xFF00D4FF), fontSize = 13.sp)
+                    }
                 }
             }
         } else {
@@ -284,4 +332,52 @@ fun GameButton(label: String, keyCode: Int, inputProcessor: InputProcessor, colo
                 }
             },
         contentAlignment = Alignment.Center) { Text(label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = (13 * scale).sp, textAlign = TextAlign.Center) }
+}
+
+@Composable
+fun Trackpad(
+    axisX: Int, axisY: Int,
+    inputProcessor: InputProcessor,
+    scale: Float, alpha: Float, editMode: Boolean
+) {
+    val sizeW = 180.dp * scale
+    val sizeH = 100.dp * scale
+    
+    var pointerOffset by remember { mutableStateOf(Offset.Zero) }
+    
+    Box(
+        modifier = Modifier
+            .size(sizeW, sizeH)
+            .alpha(alpha)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0x33000000)) // slightly lighter than pure black to see swipe zone
+            .pointerInput(editMode) {
+                if (editMode) return@pointerInput
+                detectDragGestures(
+                    onDragStart = { pointerOffset = Offset.Zero },
+                    onDragEnd = {
+                        pointerOffset = Offset.Zero
+                        inputProcessor.updateAxes(mapOf(axisX to 0f, axisY to 0f))
+                    },
+                    onDragCancel = {
+                        pointerOffset = Offset.Zero
+                        inputProcessor.updateAxes(mapOf(axisX to 0f, axisY to 0f))
+                    }
+                ) { change, dragAmount ->
+                    change.consume()
+                    pointerOffset += dragAmount
+                    val maxRadiusX = sizeW.toPx() / 2f
+                    val maxRadiusY = sizeH.toPx() / 2f
+                    val nx = (pointerOffset.x / maxRadiusX).coerceIn(-1f, 1f)
+                    val ny = (pointerOffset.y / maxRadiusY).coerceIn(-1f, 1f)
+                    inputProcessor.updateAxes(mapOf(axisX to nx, axisY to ny))
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("Trackpad", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp * scale)
+            Text("←↕→", color = Color.White.copy(alpha = 0.3f), fontSize = 16.sp * scale)
+        }
+    }
 }

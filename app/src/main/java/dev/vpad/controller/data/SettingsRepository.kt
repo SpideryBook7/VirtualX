@@ -38,7 +38,11 @@ data class VPadSettings(
     
     val gyroEnabled: Boolean = false,
     val gyroSensitivity: Float = 1.0f,
-    val gyroInvertY: Boolean = false
+    val gyroInvertY: Boolean = false,
+    
+    val pillFixedCenter: Boolean = false,
+    val selectedSkin: String = "Neon",
+    val activeControls: Set<String> = emptySet()
 )
 
 class SettingsRepository(private val context: Context) {
@@ -69,6 +73,10 @@ class SettingsRepository(private val context: Context) {
         val GYRO_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("gyro_enabled")
         val GYRO_SENSITIVITY = androidx.datastore.preferences.core.floatPreferencesKey("gyro_sensitivity")
         val GYRO_INVERT_Y = androidx.datastore.preferences.core.booleanPreferencesKey("gyro_invert_y")
+        
+        val PILL_FIXED_CENTER = androidx.datastore.preferences.core.booleanPreferencesKey("pill_fixed_center")
+        val SELECTED_SKIN = stringPreferencesKey("selected_skin")
+        val ACTIVE_CONTROLS = androidx.datastore.preferences.core.stringSetPreferencesKey("active_controls")
     }
 
     private fun parseLayout(str: String?): Map<String, Pair<Float, Float>> {
@@ -138,7 +146,10 @@ class SettingsRepository(private val context: Context) {
             hapticsEnabled = prefs[Keys.HAPTICS_ENABLED] ?: true,
             gyroEnabled   = prefs[Keys.GYRO_ENABLED]   ?: false,
             gyroSensitivity = prefs[Keys.GYRO_SENSITIVITY] ?: 1.0f,
-            gyroInvertY   = prefs[Keys.GYRO_INVERT_Y]  ?: false
+            gyroInvertY   = prefs[Keys.GYRO_INVERT_Y]  ?: false,
+            pillFixedCenter = prefs[Keys.PILL_FIXED_CENTER] ?: false,
+            selectedSkin  = prefs[Keys.SELECTED_SKIN]  ?: "Neon",
+            activeControls = prefs[Keys.ACTIVE_CONTROLS] ?: emptySet()
         )
     }
 
@@ -210,4 +221,26 @@ class SettingsRepository(private val context: Context) {
     suspend fun updateGyroEnabled(enabled: Boolean) = context.dataStore.edit { it[Keys.GYRO_ENABLED] = enabled }
     suspend fun updateGyroSensitivity(v: Float) = context.dataStore.edit { it[Keys.GYRO_SENSITIVITY] = v }
     suspend fun updateGyroInvertY(enabled: Boolean) = context.dataStore.edit { it[Keys.GYRO_INVERT_Y] = enabled }
+    suspend fun updatePillFixedCenter(fixed: Boolean) = context.dataStore.edit { it[Keys.PILL_FIXED_CENTER] = fixed }
+    suspend fun updateSelectedSkin(skin: String) = context.dataStore.edit { it[Keys.SELECTED_SKIN] = skin }
+    
+    private val defaultControls = listOf("analog_left", "trackpad", "dpad_up", "dpad_down", "dpad_left", "dpad_right", "btn_a", "btn_b", "btn_x", "btn_y", "btn_l1", "btn_l2", "btn_r1", "btn_r2", "btn_rm", "btn_select", "btn_start")
+
+    suspend fun addControl(id: String) = context.dataStore.edit { prefs ->
+        val current = (prefs[Keys.ACTIVE_CONTROLS] ?: emptySet()).toMutableSet()
+        if (current.isEmpty()) current.addAll(defaultControls)
+        current.add(id)
+        prefs[Keys.ACTIVE_CONTROLS] = current
+    }
+
+    suspend fun removeControl(id: String) = context.dataStore.edit { prefs ->
+        val current = (prefs[Keys.ACTIVE_CONTROLS] ?: emptySet()).toMutableSet()
+        if (current.isEmpty()) current.addAll(defaultControls)
+        current.remove(id)
+        prefs[Keys.ACTIVE_CONTROLS] = current
+    }
+    
+    suspend fun resetActiveControls(controls: Set<String>) = context.dataStore.edit { prefs ->
+        prefs[Keys.ACTIVE_CONTROLS] = controls
+    }
 }

@@ -124,7 +124,8 @@ class InputProcessor {
             VirtualDeviceManager.injectKeyEvent(action, targetCode)
         } else {
             // Native Gamepad fallback
-            VirtualDeviceManager.injectKeyEvent(action, keyCode, source = InputDevice.SOURCE_GAMEPAD)
+            val source = android.view.InputDevice.SOURCE_GAMEPAD or android.view.InputDevice.SOURCE_KEYBOARD
+            VirtualDeviceManager.injectKeyEvent(action, keyCode, source = source)
         }
     }
 }

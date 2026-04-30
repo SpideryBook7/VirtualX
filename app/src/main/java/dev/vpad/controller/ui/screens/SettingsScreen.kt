@@ -183,6 +183,21 @@ fun SettingsScreen(
                     )
                 }
                 Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Pill Fixed Center", color = VPadOnSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text("Anchor toggle pill to top center", color = VPadOnSurface.copy(alpha = 0.5f), fontSize = 11.sp)
+                    }
+                    Switch(
+                        checked = settings.pillFixedCenter,
+                        onCheckedChange = { scope.launch { repo.updatePillFixedCenter(it) } },
+                        colors = SwitchDefaults.colors(checkedThumbColor = VPadPrimary, checkedTrackColor = VPadPrimary.copy(alpha = 0.3f))
+                    )
+                }
+                Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -196,6 +211,24 @@ fun SettingsScreen(
                         onCheckedChange = { scope.launch { repo.toggleEditMode(it) } },
                         colors = SwitchDefaults.colors(checkedThumbColor = VPadPrimary, checkedTrackColor = VPadPrimary.copy(alpha = 0.3f))
                     )
+                }
+            }
+
+            SettingsSection(title = "Visual Skins") {
+                val skins = listOf("Default", "Neon Cyberpunk", "Minimalist")
+                skins.forEach { skin ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { scope.launch { repo.updateSelectedSkin(skin) } }.padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(skin, color = if (settings.selectedSkin == skin) VPadPrimary else VPadOnSurface, fontSize = 14.sp)
+                        RadioButton(
+                            selected = settings.selectedSkin == skin,
+                            onClick = { scope.launch { repo.updateSelectedSkin(skin) } },
+                            colors = RadioButtonDefaults.colors(selectedColor = VPadPrimary)
+                        )
+                    }
                 }
             }
 

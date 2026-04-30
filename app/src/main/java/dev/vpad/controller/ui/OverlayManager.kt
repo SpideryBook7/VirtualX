@@ -56,8 +56,8 @@ class OverlayManager(
     override val lifecycle: Lifecycle get() = lifecycleRegistry
     override val savedStateRegistry: SavedStateRegistry get() = savedStateRegistryController.savedStateRegistry
 
-    private val CONTROL_IDS = listOf(
-        "analog_left", "analog_right", "dpad_up", "dpad_down", "dpad_left", "dpad_right",
+    private val DEFAULT_CONTROL_IDS = listOf(
+        "analog_left", "trackpad", "dpad_up", "dpad_down", "dpad_left", "dpad_right",
         "btn_a", "btn_b", "btn_x", "btn_y",
         "btn_l1", "btn_l2", "btn_r1", "btn_r2", "btn_rm",
         "btn_select", "btn_start"
@@ -75,6 +75,8 @@ class OverlayManager(
         scope.launch {
             repo.settings.collectLatest { settings ->
                 currentSettings.value = settings
+                
+                inputProcessor.inputMode = settings.inputMode
                 
                 gyroManager.sensitivity = settings.gyroSensitivity
                 gyroManager.invertY = settings.gyroInvertY
@@ -105,7 +107,16 @@ class OverlayManager(
     }
 
     private fun createAllWindows() {
-        CONTROL_IDS.forEach { id ->
+        val activeIds = if (currentSettings.value.activeControls.isEmpty()) DEFAULT_CONTROL_IDS else currentSettings.value.activeControls
+        
+        // Remove active windows not in activeIds
+        val toRemove = activeWindows.keys - activeIds
+        toRemove.forEach { id ->
+            try { windowManager.removeView(activeWindows[id]) } catch (e: Exception) {}
+            activeWindows.remove(id)
+        }
+
+        activeIds.forEach { id ->
             if (activeWindows.containsKey(id)) return@forEach
             
             val offset = getSafeOffset(id, currentSettings.value)
@@ -130,6 +141,12 @@ class OverlayManager(
                         onDragEnd = { endOffset ->
                             // ONLY save to DB when touch is released
                             scope.launch { repo.updateComponentOffset(id, endOffset) }
+                        },
+                        onRemove = {
+                            scope.launch { repo.removeControl(id) }
+                            val currentView = activeWindows[id] ?: return@AtomicControl
+                            try { windowManager.removeView(currentView) } catch (e: Exception) {}
+                            activeWindows.remove(id)
                         }
                     )
                 }
@@ -182,7 +199,10 @@ class OverlayManager(
         pillView?.let { pill ->
             val params = pill.layoutParams as? WindowManager.LayoutParams
             if (params != null) {
-                if (rotated) {
+                if (settings.pillFixedCenter) {
+                    params.x = screen.x / 2 - 150
+                    params.y = 0
+                } else if (rotated) {
                     params.x = screen.x / 2 - 150
                     params.y = 50
                     scope.launch { repo.updatePillPosition(params.x, params.y) }
@@ -225,15 +245,25 @@ class OverlayManager(
                         updateAllWindowPositions() 
                     },
                     onToggleEditMode = { scope.launch { repo.toggleEditMode(it) } },
+                    onUpdateInputMode = { mode -> scope.launch { repo.updateInputMode(mode) } },
+                    onAddControl = { id -> 
+                        scope.launch { repo.addControl(id) } 
+                    },
                     onDrag = { drag ->
-                        (pillView?.layoutParams as? WindowManager.LayoutParams)?.let { p ->
-                            p.x += drag.x.toInt(); p.y += drag.y.toInt()
-                            windowManager.updateViewLayout(pillView, p)
+                        if (!currentSettings.value.pillFixedCenter) {
+                            (pillView?.layoutParams as? WindowManager.LayoutParams)?.let { p ->
+                                p.x += drag.x.toInt(); p.y += drag.y.toInt()
+                                windowManager.updateViewLayout(pillView, p)
+                            }
                         }
                     },
-                    onDragEnd = { (pillView?.layoutParams as? WindowManager.LayoutParams)?.let { p ->
-                        scope.launch { repo.updatePillPosition(p.x, p.y) }
-                    } },
+                    onDragEnd = { 
+                        if (!currentSettings.value.pillFixedCenter) {
+                            (pillView?.layoutParams as? WindowManager.LayoutParams)?.let { p ->
+                                scope.launch { repo.updatePillPosition(p.x, p.y) }
+                            } 
+                        }
+                    },
                     onConfigChange = { updateAllWindowPositions() }
                 )
             }
@@ -243,8 +273,13 @@ class OverlayManager(
             val savedX = currentSettings.value.pillX
             val savedY = currentSettings.value.pillY
             
-            x = if (savedX < 0) screen.x / 2 - 150 else savedX.coerceIn(0, screen.x - 350)
-            y = if (savedY < 0) 50 else savedY.coerceIn(0, screen.y - 150)
+            if (currentSettings.value.pillFixedCenter) {
+                x = screen.x / 2 - 150
+                y = 0
+            } else {
+                x = if (savedX < 0) screen.x / 2 - 150 else savedX.coerceIn(0, screen.x - 350)
+                y = if (savedY < 0) 50 else savedY.coerceIn(0, screen.y - 150)
+            }
         })
     }
 
@@ -263,6 +298,7 @@ class OverlayManager(
         return when (id) {
             "analog_left" -> Pair(w * 0.08f, h * 0.70f)
             "analog_right"-> Pair(w * 0.75f, h * 0.70f)
+            "trackpad"    -> Pair(w * 0.70f, h * 0.60f)
             
             "dpad_up"     -> Pair(w * 0.14f, h * 0.45f)
             "dpad_down"   -> Pair(w * 0.14f, h * 0.65f)
