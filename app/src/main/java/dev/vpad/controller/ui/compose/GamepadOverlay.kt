@@ -12,7 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
@@ -187,7 +187,7 @@ fun TogglePill(
                     }
                 }
                 if (missing.isNotEmpty()) {
-                    Divider(color = Color.DarkGray, modifier = Modifier.fillMaxWidth(0.8f).padding(vertical = 4.dp))
+                    HorizontalDivider(color = Color.DarkGray, modifier = Modifier.fillMaxWidth(0.8f).padding(vertical = 4.dp))
                     Text("Añadir control:", color = Color.Gray, fontSize = 10.sp)
                     // limit to 4 to prevent pill from getting too big
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -210,7 +210,7 @@ fun TogglePill(
                         Text("⌨️ PC", color = if (settings.inputMode == 1) Color(0xFF00FF00) else Color.White, fontSize = 12.sp)
                     }
                 }
-                Divider(color = Color.DarkGray, modifier = Modifier.fillMaxWidth(0.8f).padding(vertical = 4.dp))
+                HorizontalDivider(color = Color.DarkGray, modifier = Modifier.fillMaxWidth(0.8f).padding(vertical = 4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     TextButton(onClick = { showMenu = false; onToggleVisibility(!isVisible) }, contentPadding = PaddingValues(horizontal = 4.dp)) {
                         Text(if (isVisible) "👁️ Ocultar" else "👁️ Mostrar", color = Color.White, fontSize = 13.sp)

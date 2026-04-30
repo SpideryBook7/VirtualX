@@ -329,6 +329,7 @@ class OverlayManager(
             setContent { body() }
         }
 
+    @Suppress("DEPRECATION")
     private fun buildParams(w: Int, h: Int, id: String): WindowManager.LayoutParams {
         return WindowManager.LayoutParams(
             w, h,
