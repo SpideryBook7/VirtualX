@@ -200,15 +200,19 @@ class OverlayManager(
             val params = pill.layoutParams as? WindowManager.LayoutParams
             if (params != null) {
                 if (settings.pillFixedCenter) {
-                    params.x = screen.x / 2 - 150
+                    params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                    params.x = 0
                     params.y = 0
-                } else if (rotated) {
-                    params.x = screen.x / 2 - 150
-                    params.y = 50
-                    scope.launch { repo.updatePillPosition(params.x, params.y) }
                 } else {
-                    params.x = params.x.coerceIn(0, screen.x - 350)
-                    params.y = params.y.coerceIn(0, screen.y - 150)
+                    params.gravity = Gravity.TOP or Gravity.START
+                    if (rotated) {
+                        params.x = screen.x / 2 - 150
+                        params.y = 50
+                        scope.launch { repo.updatePillPosition(params.x, params.y) }
+                    } else {
+                        params.x = params.x.coerceIn(0, screen.x - 350)
+                        params.y = params.y.coerceIn(0, screen.y - 150)
+                    }
                 }
                 try { windowManager.updateViewLayout(pill, params) } catch (e: Exception) {}
             }
@@ -274,9 +278,11 @@ class OverlayManager(
             val savedY = currentSettings.value.pillY
             
             if (currentSettings.value.pillFixedCenter) {
-                x = screen.x / 2 - 150
+                gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                x = 0
                 y = 0
             } else {
+                gravity = Gravity.TOP or Gravity.START
                 x = if (savedX < 0) screen.x / 2 - 150 else savedX.coerceIn(0, screen.x - 350)
                 y = if (savedY < 0) 50 else savedY.coerceIn(0, screen.y - 150)
             }

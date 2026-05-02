@@ -128,4 +128,11 @@ class InputProcessor {
             VirtualDeviceManager.injectKeyEvent(action, keyCode, source = source)
         }
     }
+    
+    fun injectRelativeMouse(dx: Float, dy: Float) {
+        if (inputMode == 1) {
+            val scale = 1.5f * sensitivityCurve
+            VirtualDeviceManager.injectMouseEvent(dx * scale, dy * scale)
+        }
+    }
 }
