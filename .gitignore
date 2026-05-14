@@ -6,6 +6,10 @@
 /.cxx
 /.externalNativeBuild
 
+# Default ignored files
+/shelf/
+/workspace.xml
+
 # Gradle files
 .gradle
 /local.properties
