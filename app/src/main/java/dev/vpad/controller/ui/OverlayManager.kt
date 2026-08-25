@@ -42,6 +42,7 @@ class OverlayManager(
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val activeWindows = mutableMapOf<String, ComposeView>()
     private var pillView: ComposeView? = null
+    private var crosshairView: ComposeView? = null
 
     private val controlsVisible = mutableStateOf(false)
     private val currentSettings = mutableStateOf(VPadSettings())
@@ -56,12 +57,23 @@ class OverlayManager(
     override val lifecycle: Lifecycle get() = lifecycleRegistry
     override val savedStateRegistry: SavedStateRegistry get() = savedStateRegistryController.savedStateRegistry
 
-    private val DEFAULT_CONTROL_IDS = listOf(
+    private val DEFAULT_CONTROL_IDS_GAMEPAD = listOf(
         "analog_left", "trackpad", "dpad_up", "dpad_down", "dpad_left", "dpad_right",
         "btn_a", "btn_b", "btn_x", "btn_y",
         "btn_l1", "btn_l2", "btn_r1", "btn_r2", "btn_rm",
         "btn_select", "btn_start"
     )
+    private val DEFAULT_CONTROL_IDS_PC = DEFAULT_CONTROL_IDS_GAMEPAD
+    private val DEFAULT_CONTROL_IDS_FF = listOf("btn_macro_gloo", "btn_macro_awm", "target_gloo", "target_crouch", "target_wep1", "target_wep2")
+    
+    private fun defaultControlsForMode(mode: Int): List<String> = when (mode) {
+        0 -> DEFAULT_CONTROL_IDS_GAMEPAD
+        1 -> DEFAULT_CONTROL_IDS_PC
+        2 -> DEFAULT_CONTROL_IDS_FF
+        else -> DEFAULT_CONTROL_IDS_GAMEPAD
+    }
+    
+    private var lastInputMode = -1
 
     init {
         savedStateRegistryController.performRestore(null)
@@ -82,10 +94,11 @@ class OverlayManager(
                 gyroManager.invertY = settings.gyroInvertY
                 gyroManager.isEnabled = settings.gyroEnabled && (controlsVisible.value || settings.editMode)
                 
-                if (activeWindows.isEmpty()) {
-                    if (controlsVisible.value || settings.editMode) createAllWindows()
-                } else {
+                if (controlsVisible.value || settings.editMode) {
+                    createAllWindows()
                     updateAllWindowPositions()
+                } else {
+                    removeAllControls()
                 }
             }
         }
@@ -107,13 +120,37 @@ class OverlayManager(
     }
 
     private fun createAllWindows() {
-        val activeIds = if (currentSettings.value.activeControls.isEmpty()) DEFAULT_CONTROL_IDS else currentSettings.value.activeControls
-        
-        // Remove active windows not in activeIds
-        val toRemove = activeWindows.keys - activeIds
+        val mode = currentSettings.value.inputMode
+        val defaults = defaultControlsForMode(mode)
+
+        val rawActiveIds = if (currentSettings.value.activeControls.isEmpty()) defaults else currentSettings.value.activeControls
+        val activeIds = if (currentSettings.value.editMode) {
+            rawActiveIds
+        } else {
+            rawActiveIds.filter { !it.startsWith("target_") }
+        }
+        val toRemove = activeWindows.keys - activeIds.toSet()
+
         toRemove.forEach { id ->
             try { windowManager.removeView(activeWindows[id]) } catch (e: Exception) {}
             activeWindows.remove(id)
+        }
+
+        if (mode == 2 && currentSettings.value.crosshairEnabled) {
+            if (crosshairView == null) {
+                crosshairView = composeView {
+                    VPadTheme {
+                        dev.vpad.controller.ui.compose.Crosshair(settings = currentSettings.value)
+                    }
+                }
+                val p = buildParams(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, "crosshair")
+                p.gravity = Gravity.CENTER
+                p.x = 0; p.y = 0
+                try { windowManager.addView(crosshairView, p) } catch (e: Exception) {}
+            }
+        } else {
+            crosshairView?.let { try { windowManager.removeView(it) } catch (e: Exception) {} }
+            crosshairView = null
         }
 
         activeIds.forEach { id ->
@@ -235,6 +272,8 @@ class OverlayManager(
     private fun removeAllControls() {
         activeWindows.forEach { (_, view) -> try { windowManager.removeView(view) } catch (e: Exception) {} }
         activeWindows.clear()
+        crosshairView?.let { try { windowManager.removeView(it) } catch (e: Exception) {} }
+        crosshairView = null
     }
 
     private fun createPill() {
@@ -324,6 +363,14 @@ class OverlayManager(
             "btn_rm"      -> Pair(w * 0.75f, h * 0.05f)
             "btn_select"  -> Pair(w * 0.42f, h * 0.05f)
             "btn_start"   -> Pair(w * 0.58f, h * 0.05f)
+            
+            "btn_macro_gloo" -> Pair(w * 0.15f, h * 0.20f)
+            "btn_macro_awm"  -> Pair(w * 0.15f, h * 0.35f)
+            "target_gloo"    -> Pair(w * 0.10f, h * 0.80f)
+            "target_crouch"  -> Pair(w * 0.85f, h * 0.85f)
+            "target_wep1"    -> Pair(w * 0.60f, h * 0.10f)
+            "target_wep2"    -> Pair(w * 0.70f, h * 0.10f)
+            
             else -> Pair(w / 2f, h / 2f)
         }
     }

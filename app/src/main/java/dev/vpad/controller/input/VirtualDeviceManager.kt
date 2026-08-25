@@ -87,6 +87,67 @@ object VirtualDeviceManager {
         event.recycle()
     }
 
+    fun injectMouseButton(isDown: Boolean) {
+        val now = SystemClock.uptimeMillis()
+        val action = if (isDown) MotionEvent.ACTION_DOWN else MotionEvent.ACTION_UP
+        val buttonState = if (isDown) MotionEvent.BUTTON_PRIMARY else 0
+        
+        val coords = arrayOf(MotionEvent.PointerCoords().apply {
+            x = 0f
+            y = 0f
+        })
+        val props = arrayOf(MotionEvent.PointerProperties().apply { id = 0; toolType = MotionEvent.TOOL_TYPE_MOUSE })
+        val source = InputDevice.SOURCE_MOUSE // 8194
+        
+        val event = MotionEvent.obtain(now, now, action, 1, props, coords, 0, buttonState, 1f, 1f, VIRTUAL_DEVICE_ID, 0, source, 0)
+        inject(event)
+        event.recycle()
+    }
+    private var touchDownTime: Long = 0L
+    private val pointerDownTimes = mutableMapOf<Int, Long>()
+
+    private fun getTouchDeviceId(): Int {
+        for (id in InputDevice.getDeviceIds()) {
+            val dev = InputDevice.getDevice(id)
+            if (dev != null && dev.supportsSource(InputDevice.SOURCE_TOUCHSCREEN)) {
+                return id
+            }
+        }
+        return 0
+    }
+
+    fun injectTouchEvent(action: Int, x: Float, y: Float, pointerId: Int = 11) {
+        val now = SystemClock.uptimeMillis()
+        
+        val downTime = if (action == MotionEvent.ACTION_DOWN) {
+            pointerDownTimes[pointerId] = now
+            touchDownTime = now
+            now
+        } else {
+            pointerDownTimes[pointerId] ?: touchDownTime
+        }
+        
+        val coords = arrayOf(MotionEvent.PointerCoords().apply {
+            this.x = x
+            this.y = y
+            pressure = 1.0f
+            size = 1.0f
+        })
+        val props = arrayOf(MotionEvent.PointerProperties().apply { 
+            id = pointerId
+            toolType = MotionEvent.TOOL_TYPE_FINGER 
+        })
+        val source = InputDevice.SOURCE_TOUCHSCREEN
+        
+        val deviceId = getTouchDeviceId()
+        val event = MotionEvent.obtain(downTime, now, action, 1, props, coords, 0, 0, 1f, 1f, deviceId, 0, source, 0)
+        inject(event)
+        event.recycle()
+        
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            pointerDownTimes.remove(pointerId)
+        }
+    }
     private fun inject(event: InputEvent) {
         val method = injectMethod ?: return
         val instance = iimInstance ?: return

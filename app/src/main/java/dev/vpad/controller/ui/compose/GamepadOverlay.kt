@@ -17,6 +17,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -99,29 +101,45 @@ fun AtomicControl(
         contentAlignment = Alignment.Center
     ) {
         when (id) {
-            "analog_left" -> AnalogStick(MotionEvent.AXIS_X, MotionEvent.AXIS_Y, inputProcessor, scale, alpha, editMode, settings.selectedSkin)
-            "analog_right"-> AnalogStick(MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ, inputProcessor, scale, alpha, editMode, settings.selectedSkin)
-            "trackpad"    -> Trackpad(MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ, inputProcessor, scale, alpha, editMode, settings.inputMode, settings.selectedSkin)
+            "analog_left"  -> AnalogStick(MotionEvent.AXIS_X, MotionEvent.AXIS_Y, inputProcessor, scale, alpha, editMode, settings.selectedSkin)
+            "analog_right" -> AnalogStick(MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ, inputProcessor, scale, alpha, editMode, settings.selectedSkin)
+            "trackpad"     -> Trackpad(MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ, inputProcessor, scale, alpha, editMode, settings.inputMode, settings.selectedSkin)
             
-            "dpad_up"     -> GameButton("↑", KeyEvent.KEYCODE_DPAD_UP, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
-            "dpad_down"   -> GameButton("↓", KeyEvent.KEYCODE_DPAD_DOWN, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
-            "dpad_left"   -> GameButton("←", KeyEvent.KEYCODE_DPAD_LEFT, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
-            "dpad_right"  -> GameButton("→", KeyEvent.KEYCODE_DPAD_RIGHT, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
+            "dpad_up"      -> GameButton("↑", KeyEvent.KEYCODE_DPAD_UP,    inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
+            "dpad_down"    -> GameButton("↓", KeyEvent.KEYCODE_DPAD_DOWN,  inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
+            "dpad_left"    -> GameButton("←", KeyEvent.KEYCODE_DPAD_LEFT,  inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
+            "dpad_right"   -> GameButton("→", KeyEvent.KEYCODE_DPAD_RIGHT, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
             
-            "btn_a"       -> GameButton("A", KeyEvent.KEYCODE_BUTTON_A, inputProcessor, Color(0xFF32CD32), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
-            "btn_b"       -> GameButton("B", KeyEvent.KEYCODE_BUTTON_B, inputProcessor, Color(0xFFFF4500), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
-            "btn_x"       -> GameButton("X", KeyEvent.KEYCODE_BUTTON_X, inputProcessor, Color(0xFF1E90FF), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
-            "btn_y"       -> GameButton("Y", KeyEvent.KEYCODE_BUTTON_Y, inputProcessor, Color(0xFFFFD700), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
+            "btn_a"        -> GameButton("A",  KeyEvent.KEYCODE_BUTTON_A,      inputProcessor, Color(0xFF32CD32), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
+            "btn_b"        -> GameButton("B",  KeyEvent.KEYCODE_BUTTON_B,      inputProcessor, Color(0xFFFF4500), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
+            "btn_x"        -> GameButton("X",  KeyEvent.KEYCODE_BUTTON_X,      inputProcessor, Color(0xFF1E90FF), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
+            "btn_y"        -> GameButton("Y",  KeyEvent.KEYCODE_BUTTON_Y,      inputProcessor, Color(0xFFFFD700), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
             
-            "btn_l1"      -> GameButton("L1", KeyEvent.KEYCODE_BUTTON_L1, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, isBumper = true, skin = settings.selectedSkin)
-            "btn_l2"      -> GameButton("L2", KeyEvent.KEYCODE_BUTTON_L2, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, isBumper = true, skin = settings.selectedSkin)
-            "btn_r1"      -> GameButton("R1", KeyEvent.KEYCODE_BUTTON_R1, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, isBumper = true, skin = settings.selectedSkin)
-            "btn_r2"      -> GameButton("R2", KeyEvent.KEYCODE_BUTTON_R2, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, isBumper = true, skin = settings.selectedSkin)
+            "btn_l1"       -> GameButton("L1", KeyEvent.KEYCODE_BUTTON_L1, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, isBumper = true, skin = settings.selectedSkin)
+            "btn_l2"       -> GameButton("L2", KeyEvent.KEYCODE_BUTTON_L2, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, isBumper = true, skin = settings.selectedSkin)
+            "btn_r1"       -> GameButton("R1", KeyEvent.KEYCODE_BUTTON_R1, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, isBumper = true, skin = settings.selectedSkin)
+            "btn_r2"       -> GameButton("R2", KeyEvent.KEYCODE_BUTTON_R2, inputProcessor, Color(0xFF4A4A5A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, isBumper = true, skin = settings.selectedSkin)
             
-            "btn_rm"      -> GameButton("RM", 10001, inputProcessor, Color(0xFF666666), alpha, scale, editMode, settings.hapticsEnabled, vibrator, isBumper = true, skin = settings.selectedSkin)
+            "btn_rm"       -> GameButton("RM", 10001, inputProcessor, Color(0xFF666666), alpha, scale, editMode, settings.hapticsEnabled, vibrator, isBumper = true, skin = settings.selectedSkin)
             
-            "btn_select"  -> GameButton("⊟", KeyEvent.KEYCODE_BUTTON_SELECT, inputProcessor, Color(0xFF2A2A3A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
-            "btn_start"   -> GameButton("⊞", KeyEvent.KEYCODE_BUTTON_START, inputProcessor, Color(0xFF2A2A3A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
+            "btn_select"   -> GameButton("⊟", KeyEvent.KEYCODE_BUTTON_SELECT, inputProcessor, Color(0xFF2A2A3A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
+            "btn_start"    -> GameButton("⊞", KeyEvent.KEYCODE_BUTTON_START,  inputProcessor, Color(0xFF2A2A3A), alpha, scale, editMode, settings.hapticsEnabled, vibrator, skin = settings.selectedSkin)
+
+            "btn_macro_gloo", "btn_macro_awm" -> MacroButton(
+                id = id,
+                inputProcessor = inputProcessor,
+                scale = scale,
+                alpha = alpha,
+                isEditMode = editMode,
+                settings = settings,
+                vibrator = vibrator,
+                hapticsEnabled = settings.hapticsEnabled,
+                skin = settings.selectedSkin
+            )
+            
+            "target_gloo", "target_crouch", "target_wep1", "target_wep2" ->
+                if (editMode) VirtualTarget(id = id, scale = scale)
+                else Box(modifier = Modifier.size(1.dp))
         }
         
         if (editMode) {
@@ -170,7 +188,7 @@ fun TogglePill(
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xE612121A), // Sleek dark metallic
+                        Color(0xE612121A),
                         Color(0xDD1A1A24)
                     )
                 )
@@ -189,10 +207,12 @@ fun TogglePill(
         contentAlignment = Alignment.Center
     ) {
         if (editMode) {
-            val allControls = listOf("analog_left", "trackpad", "dpad_up", "dpad_down", "dpad_left", "dpad_right", "btn_a", "btn_b", "btn_x", "btn_y", "btn_l1", "btn_l2", "btn_r1", "btn_r2", "btn_rm", "btn_select", "btn_start")
+            val allControls = when (settings.inputMode) {
+                2    -> listOf("btn_macro_gloo", "btn_macro_awm", "target_gloo", "target_crouch", "target_wep1", "target_wep2")
+                else -> listOf("analog_left", "trackpad", "dpad_up", "dpad_down", "dpad_left", "dpad_right", "btn_a", "btn_b", "btn_x", "btn_y", "btn_l1", "btn_l2", "btn_r1", "btn_r2", "btn_rm", "btn_select", "btn_start")
+            }
             val currentActive = if (settings.activeControls.isEmpty()) allControls else settings.activeControls
             val missing = allControls.filter { !currentActive.contains(it) }
-            
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     Text("✥ MOVER", color = Color(0xFFFFD700), fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -206,7 +226,7 @@ fun TogglePill(
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         missing.take(3).forEach { id ->
                             Button(onClick = { onAddControl(id) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF333344)), modifier = Modifier.height(28.dp).weight(1f), contentPadding = PaddingValues(0.dp)) {
-                                Text(id.replace("btn_", "").replace("dpad_", ""), fontSize = 9.sp, maxLines = 1)
+                                Text(id.replace("btn_", "").replace("dpad_", "").replace("target_", ""), fontSize = 9.sp, maxLines = 1)
                             }
                         }
                     }
@@ -221,6 +241,9 @@ fun TogglePill(
                     }
                     TextButton(onClick = { onUpdateInputMode(1) }) {
                         Text("⌨️ PC", color = if (settings.inputMode == 1) Color(0xFF00FFCC) else Color.White, fontSize = 12.sp, fontWeight = if (settings.inputMode == 1) FontWeight.Bold else FontWeight.Normal)
+                    }
+                    TextButton(onClick = { onUpdateInputMode(2) }) {
+                        Text("🎯 FF", color = if (settings.inputMode == 2) Color(0xFFFF3366) else Color.White, fontSize = 12.sp, fontWeight = if (settings.inputMode == 2) FontWeight.Bold else FontWeight.Normal)
                     }
                 }
                 HorizontalDivider(color = Color.DarkGray.copy(alpha = 0.5f), modifier = Modifier.fillMaxWidth())
@@ -241,20 +264,19 @@ fun TogglePill(
 
 @Composable
 fun GameButton(
-    label: String, keyCode: Int, inputProcessor: InputProcessor, 
+    label: String, keyCode: Int, inputProcessor: InputProcessor,
     color: Color, alpha: Float, scale: Float, isEditMode: Boolean, hapticsEnabled: Boolean, vibrator: Vibrator, isBumper: Boolean = false, skin: String = "Default"
 ) {
     var isPressed by remember { mutableStateOf(false) }
-    
-    val width = if (isBumper) (60 * scale).dp else (45 * scale).dp
+
+    val width  = if (isBumper) (60 * scale).dp else (45 * scale).dp
     val height = if (isBumper) (35 * scale).dp else (45 * scale).dp
-    
-    val isNeon = skin == "Neon Cyberpunk"
-    val bgColor = if (isNeon) Color(0xFF0F0F1A) else color
+    val isNeon      = skin == "Neon Cyberpunk"
+    val bgColor     = if (isNeon) Color(0xFF0F0F1A) else color
     val borderColor = if (isNeon) (if (isPressed) Color(0xFFFF00FF) else Color(0xFF00FFFF)) else Color.Transparent
     val borderWidth = if (isNeon) 2.dp else 0.dp
-    val textColor = if (isNeon) borderColor else Color.White
-    
+    val textColor   = if (isNeon) borderColor else Color.White
+
     Box(
         modifier = Modifier
             .size(width, height)
@@ -401,5 +423,162 @@ fun Trackpad(
             Text("Trackpad", color = if (isNeon) Color(0xFF00FFFF) else Color.White.copy(alpha = 0.5f), fontSize = 12.sp * scale, fontWeight = if (isNeon) FontWeight.Bold else FontWeight.Normal)
             Text("←↕→", color = if (isNeon) Color(0xFFFF00FF) else Color.White.copy(alpha = 0.3f), fontSize = 16.sp * scale)
         }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Free Fire Smart: Crosshair (drawn by OverlayManager as its own window)
+// ─────────────────────────────────────────────────────────────────
+
+@Composable
+fun Crosshair(settings: VPadSettings) {
+    val size = (18 * settings.crosshairSize).dp
+    val color = when (settings.crosshairColor.lowercase()) {
+        "green" -> Color.Green
+        "cyan"  -> Color.Cyan
+        "white" -> Color.White
+        else    -> Color.Red
+    }
+    Box(modifier = Modifier.size(size), contentAlignment = Alignment.Center) {
+        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+            val cx = size.toPx() / 2f
+            val cy = size.toPx() / 2f
+            val sw = 3f * settings.crosshairSize
+            val len = size.toPx() * 0.35f
+            drawCircle(color = color.copy(alpha = 0.9f), radius = 2f * settings.crosshairSize, center = Offset(cx, cy))
+            drawLine(color, Offset(cx - len, cy), Offset(cx - 3f, cy), sw)
+            drawLine(color, Offset(cx + 3f, cy), Offset(cx + len, cy), sw)
+            drawLine(color, Offset(cx, cy - len), Offset(cx, cy - 3f), sw)
+            drawLine(color, Offset(cx, cy + 3f), Offset(cx, cy + len), sw)
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Free Fire Smart: Virtual target marker (only visible in edit mode)
+// ─────────────────────────────────────────────────────────────────
+
+@Composable
+fun VirtualTarget(id: String, scale: Float) {
+    val label = when (id) {
+        "target_gloo"   -> "🧱\nGLOO"
+        "target_crouch" -> "🦆\nCROUCH"
+        "target_wep1"   -> "🔫\nWEP 1"
+        "target_wep2"   -> "⚡\nWEP 2"
+        else            -> "🎯"
+    }
+    Box(
+        modifier = Modifier
+            .size((48 * scale).dp)
+            .clip(CircleShape)
+            .background(Color(0x55FFFF00))
+            .border(1.5.dp, Color.Yellow, CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = Color.Yellow, fontSize = (8 * scale).sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Free Fire Smart: Macro execution button
+// ─────────────────────────────────────────────────────────────────
+
+@Composable
+fun MacroButton(
+    id: String,
+    inputProcessor: InputProcessor,
+    scale: Float,
+    alpha: Float,
+    isEditMode: Boolean,
+    settings: VPadSettings,
+    vibrator: android.os.Vibrator,
+    hapticsEnabled: Boolean,
+    skin: String
+) {
+    val isGloo = id == "btn_macro_gloo"
+    val label = if (isGloo) "GLOO\nMACRO" else "AWM\nMACRO"
+    val accentColor = if (isGloo) Color(0xFF00BFFF) else Color(0xFFFF6600)
+    var isPressed by remember { mutableStateOf(false) }
+    val isNeon = skin == "Neon Cyberpunk"
+    val bgColor = if (isNeon) accentColor.copy(alpha = 0.25f) else accentColor.copy(alpha = 0.75f)
+
+    val context = LocalContext.current
+    val dm = context.resources.displayMetrics
+    val screenW = dm.widthPixels.toFloat()
+    val screenH = dm.heightPixels.toFloat()
+    val density = dm.density
+
+    // Target gloo
+    val glooOffset = settings.layoutOffsets["target_gloo"] ?: Pair(screenW * 0.10f, screenH * 0.80f)
+    val glooX = glooOffset.first + 24f * density
+    val glooY = glooOffset.second + 24f * density
+
+    // Target crouch
+    val crouchOffset = settings.layoutOffsets["target_crouch"] ?: Pair(screenW * 0.85f, screenH * 0.85f)
+    val crouchX = crouchOffset.first + 24f * density
+    val crouchY = crouchOffset.second + 24f * density
+
+    // Target weapon 1
+    val wep1Offset = settings.layoutOffsets["target_wep1"] ?: Pair(screenW * 0.60f, screenH * 0.10f)
+    val wep1X = wep1Offset.first + 24f * density
+    val wep1Y = wep1Offset.second + 24f * density
+
+    // Target weapon 2
+    val wep2Offset = settings.layoutOffsets["target_wep2"] ?: Pair(screenW * 0.70f, screenH * 0.10f)
+    val wep2X = wep2Offset.first + 24f * density
+    val wep2Y = wep2Offset.second + 24f * density
+
+    Box(
+        modifier = Modifier
+            .size((64 * scale).dp)
+            .alpha(if (isPressed) 1f else alpha)
+            .clip(CircleShape)
+            .background(bgColor)
+            .border(2.dp, if (isPressed) Color.White else accentColor, CircleShape)
+            .pointerInput(isEditMode) {
+                if (!isEditMode) {
+                    detectTapGestures(
+                        onPress = { _ ->
+                            isPressed = true
+                            if (hapticsEnabled) {
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                    vibrator.vibrate(android.os.VibrationEffect.createOneShot(20, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                                } else {
+                                    @Suppress("DEPRECATION")
+                                    vibrator.vibrate(20)
+                                }
+                            }
+                            withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                if (isGloo) {
+                                    inputProcessor.injectTouch(android.view.MotionEvent.ACTION_DOWN, glooX, glooY, 12)
+                                    kotlinx.coroutines.delay(15)
+                                    inputProcessor.injectTouch(android.view.MotionEvent.ACTION_UP, glooX, glooY, 12)
+                                    
+                                    kotlinx.coroutines.delay(25)
+                                    
+                                    inputProcessor.injectTouch(android.view.MotionEvent.ACTION_DOWN, crouchX, crouchY, 13)
+                                    kotlinx.coroutines.delay(15)
+                                    inputProcessor.injectTouch(android.view.MotionEvent.ACTION_UP, crouchX, crouchY, 13)
+                                } else {
+                                    inputProcessor.injectTouch(android.view.MotionEvent.ACTION_DOWN, wep1X, wep1Y, 14)
+                                    kotlinx.coroutines.delay(15)
+                                    inputProcessor.injectTouch(android.view.MotionEvent.ACTION_UP, wep1X, wep1Y, 14)
+                                    
+                                    kotlinx.coroutines.delay(35)
+                                    
+                                    inputProcessor.injectTouch(android.view.MotionEvent.ACTION_DOWN, wep2X, wep2Y, 15)
+                                    kotlinx.coroutines.delay(15)
+                                    inputProcessor.injectTouch(android.view.MotionEvent.ACTION_UP, wep2X, wep2Y, 15)
+                                }
+                            }
+                            tryAwaitRelease()
+                            isPressed = false
+                        }
+                    )
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = (10 * scale).sp, textAlign = TextAlign.Center)
     }
 }

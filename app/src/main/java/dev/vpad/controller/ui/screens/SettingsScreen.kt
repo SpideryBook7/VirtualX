@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -167,21 +168,7 @@ fun SettingsScreen(
                     formatted = { "%.0f%%".format(it * 100) },
                     onChanged = { scope.launch { repo.updateButtonScale(it) } }
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("Input Profile", color = VPadOnSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                        Text(if (settings.inputMode == 0) "Gamepad (X-Input)" else "PC (Keyboard & Mouse)", color = VPadOnSurface.copy(alpha = 0.5f), fontSize = 11.sp)
-                    }
-                    Switch(
-                        checked = settings.inputMode == 1,
-                        onCheckedChange = { scope.launch { repo.updateInputMode(if (it) 1 else 0) } },
-                        colors = SwitchDefaults.colors(checkedThumbColor = VPadPrimary, checkedTrackColor = VPadPrimary.copy(alpha = 0.3f))
-                    )
-                }
+                // Input Profile switch removed from here and moved to a dedicated section
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -384,6 +371,78 @@ fun SettingsScreen(
                                 Text(pcKeyName(currentMapped), color = VPadPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
                             HorizontalDivider(color = Color(0xFF2A2A3A).copy(alpha = 0.5f))
+                        }
+                    }
+                }
+            }
+
+            SettingsSection(title = "Modo de Control (Input Mode)") {
+                val inputModes = listOf(
+                    0 to "🎮 Gamepad (X-Input)",
+                    1 to "⌨️ PC (Teclado y Ratón)",
+                    2 to "🎯 Free Fire Smart"
+                )
+                
+                inputModes.forEach { (modeValue, modeName) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { scope.launch { repo.updateInputMode(modeValue) } }
+                            .padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(modeName, color = if (settings.inputMode == modeValue) VPadPrimary else VPadOnSurface, fontSize = 14.sp, fontWeight = if (settings.inputMode == modeValue) FontWeight.Bold else FontWeight.Normal)
+                        RadioButton(
+                            selected = settings.inputMode == modeValue,
+                            onClick = { scope.launch { repo.updateInputMode(modeValue) } },
+                            colors = RadioButtonDefaults.colors(selectedColor = VPadPrimary, unselectedColor = VPadOnSurface.copy(alpha=0.5f))
+                        )
+                    }
+                }
+
+                if (settings.inputMode == 2) {
+                    HorizontalDivider(color = Color(0xFF2A2A3A).copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 8.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Mira Estática Flotante", color = VPadOnSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Text("Punto central fijo para apuntar fácil", color = VPadOnSurface.copy(alpha = 0.5f), fontSize = 11.sp)
+                        }
+                        Switch(
+                            checked = settings.crosshairEnabled,
+                            onCheckedChange = { scope.launch { repo.updateCrosshairEnabled(it) } },
+                            colors = SwitchDefaults.colors(checkedThumbColor = VPadPrimary, checkedTrackColor = VPadPrimary.copy(alpha = 0.3f))
+                        )
+                    }
+
+                    if (settings.crosshairEnabled) {
+                        SettingsSlider(
+                            label = "Tamaño de la Mira",
+                            value = settings.crosshairSize,
+                            range = 0.5f..3.0f,
+                            formatted = { "%.1fx".format(it) },
+                            onChanged = { scope.launch { repo.updateCrosshairSize(it) } }
+                        )
+                        
+                        Text("Color de la Mira", color = VPadOnSurface, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                        val colors = listOf("Red" to Color.Red, "Green" to Color.Green, "Cyan" to Color.Cyan, "White" to Color.White)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            colors.forEach { (name, color) ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(color)
+                                        .clickable { scope.launch { repo.updateCrosshairColor(name) } }
+                                        .then(if (settings.crosshairColor == name) Modifier.border(2.dp, Color.White, RoundedCornerShape(8.dp)) else Modifier)
+                                )
+                            }
                         }
                     }
                 }

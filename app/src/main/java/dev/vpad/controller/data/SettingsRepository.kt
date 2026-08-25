@@ -14,18 +14,19 @@ import kotlinx.coroutines.flow.map
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "vpad_settings")
 
 data class VPadSettings(
-    val inputMode: Int = 0, // 0 = Gamepad, 1 = PC (Keyboard/Mouse)
+    val inputMode: Int = 0, // 0 = Gamepad, 1 = PC (Keyboard/Mouse), 2 = FF Smart
     
     val sensitivity: Float   = 1.0f,
     val deadZone: Float      = 0.08f,
     val curveExponent: Float = 1.4f,
     val overlayOpacity: Float = 0.75f,
     val buttonScale: Float   = 1.0f,
+    val ffSensitivity: Float = 1.0f,
 
     val pillX: Int = -1,
     val pillY: Int = -1,
 
-    // Dynamic map of button IDs to their X,Y offset
+    // Dynamic map of button IDs to their X,Y offset (per-mode)
     val layoutOffsets: Map<String, Pair<Float, Float>> = emptyMap(),
     
     val activeProfileName: String = "Default",
@@ -42,7 +43,12 @@ data class VPadSettings(
     
     val pillFixedCenter: Boolean = false,
     val selectedSkin: String = "Neon",
-    val activeControls: Set<String> = emptySet()
+    val activeControls: Set<String> = emptySet(),
+    
+    // Custom Crosshair
+    val crosshairEnabled: Boolean = false,
+    val crosshairColor: String = "Red",
+    val crosshairSize: Float = 1.0f
 )
 
 class SettingsRepository(private val context: Context) {
@@ -54,12 +60,15 @@ class SettingsRepository(private val context: Context) {
         val CURVE_EXPONENT = floatPreferencesKey("curve_exponent")
         val OPACITY        = floatPreferencesKey("opacity")
         val BUTTON_SCALE   = floatPreferencesKey("button_scale")
+        val FF_SENSITIVITY = floatPreferencesKey("ff_sensitivity")
         
         val PILL_X = intPreferencesKey("pill_x")
         val PILL_Y = intPreferencesKey("pill_y")
 
-        // Format is "id:x,y|id2:x,y"
+        // Format is "id:x,y|id2:x,y" — per-mode keys
         val LAYOUT_OFFSETS = stringPreferencesKey("layout_offsets")
+        fun layoutOffsetsKey(mode: Int) = stringPreferencesKey("layout_offsets_mode_$mode")
+        fun activeControlsKey(mode: Int) = androidx.datastore.preferences.core.stringSetPreferencesKey("active_controls_mode_$mode")
         
         val ACTIVE_PROFILE = stringPreferencesKey("active_profile")
         val SAVED_PROFILE_NAMES = androidx.datastore.preferences.core.stringSetPreferencesKey("saved_profile_names")
@@ -71,12 +80,16 @@ class SettingsRepository(private val context: Context) {
         val HAPTICS_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("haptics_enabled")
         
         val GYRO_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("gyro_enabled")
-        val GYRO_SENSITIVITY = androidx.datastore.preferences.core.floatPreferencesKey("gyro_sensitivity")
+        val GYRO_SENSITIVITY = floatPreferencesKey("gyro_sensitivity")
         val GYRO_INVERT_Y = androidx.datastore.preferences.core.booleanPreferencesKey("gyro_invert_y")
         
         val PILL_FIXED_CENTER = androidx.datastore.preferences.core.booleanPreferencesKey("pill_fixed_center")
         val SELECTED_SKIN = stringPreferencesKey("selected_skin")
         val ACTIVE_CONTROLS = androidx.datastore.preferences.core.stringSetPreferencesKey("active_controls")
+
+        val CROSSHAIR_ENABLED = androidx.datastore.preferences.core.booleanPreferencesKey("crosshair_enabled")
+        val CROSSHAIR_COLOR = stringPreferencesKey("crosshair_color")
+        val CROSSHAIR_SIZE = floatPreferencesKey("crosshair_size")
     }
 
     private fun parseLayout(str: String?): Map<String, Pair<Float, Float>> {
@@ -129,16 +142,25 @@ class SettingsRepository(private val context: Context) {
             }
         }
 
+        val mode = prefs[Keys.INPUT_MODE] ?: 0
+        // Per-mode layout offsets: try mode-specific key first, fallback to legacy shared key
+        val modeLayoutStr = prefs[Keys.layoutOffsetsKey(mode)]
+        val layoutStr = modeLayoutStr ?: prefs[Keys.LAYOUT_OFFSETS]
+        // Per-mode active controls
+        val modeControls = prefs[Keys.activeControlsKey(mode)]
+        val controls = modeControls ?: prefs[Keys.ACTIVE_CONTROLS] ?: emptySet()
+
         VPadSettings(
-            inputMode     = prefs[Keys.INPUT_MODE]     ?: 0,
+            inputMode     = mode,
             sensitivity   = prefs[Keys.SENSITIVITY]    ?: 1.0f,
             deadZone      = prefs[Keys.DEAD_ZONE]      ?: 0.08f,
             curveExponent = prefs[Keys.CURVE_EXPONENT] ?: 1.4f,
             overlayOpacity = prefs[Keys.OPACITY]       ?: 0.75f,
             buttonScale   = prefs[Keys.BUTTON_SCALE]   ?: 1.0f,
+            ffSensitivity = prefs[Keys.FF_SENSITIVITY] ?: 1.0f,
             pillX         = prefs[Keys.PILL_X]         ?: -1,
             pillY         = prefs[Keys.PILL_Y]         ?: -1,
-            layoutOffsets = parseLayout(prefs[Keys.LAYOUT_OFFSETS]),
+            layoutOffsets = parseLayout(layoutStr),
             activeProfileName = prefs[Keys.ACTIVE_PROFILE] ?: "Custom",
             savedProfiles = profilesMap,
             pcKeyMap      = parsePcKeyMap(prefs[Keys.PC_KEY_MAP]),
@@ -149,7 +171,10 @@ class SettingsRepository(private val context: Context) {
             gyroInvertY   = prefs[Keys.GYRO_INVERT_Y]  ?: false,
             pillFixedCenter = prefs[Keys.PILL_FIXED_CENTER] ?: false,
             selectedSkin  = prefs[Keys.SELECTED_SKIN]  ?: "Neon",
-            activeControls = prefs[Keys.ACTIVE_CONTROLS] ?: emptySet()
+            activeControls = controls,
+            crosshairEnabled = prefs[Keys.CROSSHAIR_ENABLED] ?: false,
+            crosshairColor = prefs[Keys.CROSSHAIR_COLOR] ?: "Red",
+            crosshairSize = prefs[Keys.CROSSHAIR_SIZE] ?: 1.0f
         )
     }
 
@@ -159,6 +184,7 @@ class SettingsRepository(private val context: Context) {
     suspend fun updateCurveExponent(v: Float)  = context.dataStore.edit { it[Keys.CURVE_EXPONENT] = v }
     suspend fun updateOpacity(v: Float)        = context.dataStore.edit { it[Keys.OPACITY]        = v }
     suspend fun updateButtonScale(v: Float)    = context.dataStore.edit { it[Keys.BUTTON_SCALE]   = v }
+    suspend fun updateFfSensitivity(v: Float)  = context.dataStore.edit { it[Keys.FF_SENSITIVITY] = v }
     
     suspend fun updatePillPosition(x: Int, y: Int) = context.dataStore.edit { 
         it[Keys.PILL_X] = x
@@ -166,9 +192,11 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun updateComponentOffset(id: String, offset: Pair<Float, Float>) = context.dataStore.edit { prefs ->
-        val current = parseLayout(prefs[Keys.LAYOUT_OFFSETS]).toMutableMap()
+        val mode = prefs[Keys.INPUT_MODE] ?: 0
+        val key = Keys.layoutOffsetsKey(mode)
+        val current = parseLayout(prefs[key]).toMutableMap()
         current[id] = offset
-        prefs[Keys.LAYOUT_OFFSETS] = encodeLayout(current)
+        prefs[key] = encodeLayout(current)
     }
 
     suspend fun updatePcKeyMapping(gamepadKey: Int, pcKey: Int) = context.dataStore.edit { prefs ->
@@ -220,27 +248,45 @@ class SettingsRepository(private val context: Context) {
     suspend fun updateHapticsEnabled(enabled: Boolean) = context.dataStore.edit { it[Keys.HAPTICS_ENABLED] = enabled }
     suspend fun updateGyroEnabled(enabled: Boolean) = context.dataStore.edit { it[Keys.GYRO_ENABLED] = enabled }
     suspend fun updateGyroSensitivity(v: Float) = context.dataStore.edit { it[Keys.GYRO_SENSITIVITY] = v }
-    suspend fun updateGyroInvertY(enabled: Boolean) = context.dataStore.edit { it[Keys.GYRO_INVERT_Y] = enabled }
+    suspend fun updateGyroInvertY(v: Boolean)  = context.dataStore.edit { it[Keys.GYRO_INVERT_Y]  = v }
+    
+    suspend fun updateCrosshairEnabled(v: Boolean) = context.dataStore.edit { it[Keys.CROSSHAIR_ENABLED] = v }
+    suspend fun updateCrosshairColor(v: String) = context.dataStore.edit { it[Keys.CROSSHAIR_COLOR] = v }
+    suspend fun updateCrosshairSize(v: Float) = context.dataStore.edit { it[Keys.CROSSHAIR_SIZE] = v }
     suspend fun updatePillFixedCenter(fixed: Boolean) = context.dataStore.edit { it[Keys.PILL_FIXED_CENTER] = fixed }
     suspend fun updateSelectedSkin(skin: String) = context.dataStore.edit { it[Keys.SELECTED_SKIN] = skin }
     
-    private val defaultControls = listOf("analog_left", "trackpad", "dpad_up", "dpad_down", "dpad_left", "dpad_right", "btn_a", "btn_b", "btn_x", "btn_y", "btn_l1", "btn_l2", "btn_r1", "btn_r2", "btn_rm", "btn_select", "btn_start")
+    private val defaultControlsGamepad = listOf("analog_left", "trackpad", "dpad_up", "dpad_down", "dpad_left", "dpad_right", "btn_a", "btn_b", "btn_x", "btn_y", "btn_l1", "btn_l2", "btn_r1", "btn_r2", "btn_rm", "btn_select", "btn_start")
+    private val defaultControlsPc = listOf("analog_left", "trackpad", "dpad_up", "dpad_down", "dpad_left", "dpad_right", "btn_a", "btn_b", "btn_x", "btn_y", "btn_l1", "btn_l2", "btn_r1", "btn_r2", "btn_rm", "btn_select", "btn_start")
+    private val defaultControlsFf = listOf("btn_ff_shoot")
+    
+    fun defaultControlsForMode(mode: Int): List<String> = when (mode) {
+        0 -> defaultControlsGamepad
+        1 -> defaultControlsPc
+        2 -> defaultControlsFf
+        else -> defaultControlsGamepad
+    }
 
     suspend fun addControl(id: String) = context.dataStore.edit { prefs ->
-        val current = (prefs[Keys.ACTIVE_CONTROLS] ?: emptySet()).toMutableSet()
-        if (current.isEmpty()) current.addAll(defaultControls)
+        val mode = prefs[Keys.INPUT_MODE] ?: 0
+        val key = Keys.activeControlsKey(mode)
+        val current = (prefs[key] ?: emptySet()).toMutableSet()
+        if (current.isEmpty()) current.addAll(defaultControlsForMode(mode))
         current.add(id)
-        prefs[Keys.ACTIVE_CONTROLS] = current
+        prefs[key] = current
     }
 
     suspend fun removeControl(id: String) = context.dataStore.edit { prefs ->
-        val current = (prefs[Keys.ACTIVE_CONTROLS] ?: emptySet()).toMutableSet()
-        if (current.isEmpty()) current.addAll(defaultControls)
+        val mode = prefs[Keys.INPUT_MODE] ?: 0
+        val key = Keys.activeControlsKey(mode)
+        val current = (prefs[key] ?: emptySet()).toMutableSet()
+        if (current.isEmpty()) current.addAll(defaultControlsForMode(mode))
         current.remove(id)
-        prefs[Keys.ACTIVE_CONTROLS] = current
+        prefs[key] = current
     }
     
     suspend fun resetActiveControls(controls: Set<String>) = context.dataStore.edit { prefs ->
-        prefs[Keys.ACTIVE_CONTROLS] = controls
+        val mode = prefs[Keys.INPUT_MODE] ?: 0
+        prefs[Keys.activeControlsKey(mode)] = controls
     }
 }

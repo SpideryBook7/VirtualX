@@ -130,9 +130,19 @@ class InputProcessor {
     }
     
     fun injectRelativeMouse(dx: Float, dy: Float) {
-        if (inputMode == 1) {
+        if (inputMode == 1 || inputMode == 2) {
             val scale = 1.5f * sensitivityCurve
             VirtualDeviceManager.injectMouseEvent(dx * scale, dy * scale)
         }
+    }
+
+    fun injectMouseButton(isDown: Boolean) {
+        if (inputMode == 1 || inputMode == 2) {
+            VirtualDeviceManager.injectMouseButton(isDown)
+        }
+    }
+
+    fun injectTouch(action: Int, x: Float, y: Float, pointerId: Int = 11) {
+        VirtualDeviceManager.injectTouchEvent(action, x, y, pointerId)
     }
 }
