@@ -42,6 +42,7 @@ data class VPadSettings(
     val gyroInvertY: Boolean = false,
     
     val pillFixedCenter: Boolean = false,
+    val showPill: Boolean = true,
     val selectedSkin: String = "Neon",
     val activeControls: Set<String> = emptySet(),
     
@@ -84,6 +85,7 @@ class SettingsRepository(private val context: Context) {
         val GYRO_INVERT_Y = androidx.datastore.preferences.core.booleanPreferencesKey("gyro_invert_y")
         
         val PILL_FIXED_CENTER = androidx.datastore.preferences.core.booleanPreferencesKey("pill_fixed_center")
+        val SHOW_PILL = androidx.datastore.preferences.core.booleanPreferencesKey("show_pill")
         val SELECTED_SKIN = stringPreferencesKey("selected_skin")
         val ACTIVE_CONTROLS = androidx.datastore.preferences.core.stringSetPreferencesKey("active_controls")
 
@@ -148,7 +150,7 @@ class SettingsRepository(private val context: Context) {
         val layoutStr = modeLayoutStr ?: prefs[Keys.LAYOUT_OFFSETS]
         // Per-mode active controls
         val modeControls = prefs[Keys.activeControlsKey(mode)]
-        val controls = modeControls ?: prefs[Keys.ACTIVE_CONTROLS] ?: emptySet()
+        val controls = modeControls ?: prefs[Keys.ACTIVE_CONTROLS] ?: defaultControlsForMode(mode).toSet()
 
         VPadSettings(
             inputMode     = mode,
@@ -170,6 +172,7 @@ class SettingsRepository(private val context: Context) {
             gyroSensitivity = prefs[Keys.GYRO_SENSITIVITY] ?: 1.0f,
             gyroInvertY   = prefs[Keys.GYRO_INVERT_Y]  ?: false,
             pillFixedCenter = prefs[Keys.PILL_FIXED_CENTER] ?: false,
+            showPill      = prefs[Keys.SHOW_PILL]      ?: true,
             selectedSkin  = prefs[Keys.SELECTED_SKIN]  ?: "Neon",
             activeControls = controls,
             crosshairEnabled = prefs[Keys.CROSSHAIR_ENABLED] ?: false,
@@ -177,6 +180,8 @@ class SettingsRepository(private val context: Context) {
             crosshairSize = prefs[Keys.CROSSHAIR_SIZE] ?: 1.0f
         )
     }
+
+    suspend fun updateShowPill(show: Boolean)  = context.dataStore.edit { it[Keys.SHOW_PILL]       = show }
 
     suspend fun updateInputMode(m: Int)        = context.dataStore.edit { it[Keys.INPUT_MODE]     = m }
     suspend fun updateSensitivity(v: Float)    = context.dataStore.edit { it[Keys.SENSITIVITY]    = v }
@@ -258,7 +263,7 @@ class SettingsRepository(private val context: Context) {
     
     private val defaultControlsGamepad = listOf("analog_left", "trackpad", "dpad_up", "dpad_down", "dpad_left", "dpad_right", "btn_a", "btn_b", "btn_x", "btn_y", "btn_l1", "btn_l2", "btn_r1", "btn_r2", "btn_rm", "btn_select", "btn_start")
     private val defaultControlsPc = listOf("analog_left", "trackpad", "dpad_up", "dpad_down", "dpad_left", "dpad_right", "btn_a", "btn_b", "btn_x", "btn_y", "btn_l1", "btn_l2", "btn_r1", "btn_r2", "btn_rm", "btn_select", "btn_start")
-    private val defaultControlsFf = listOf("btn_ff_shoot")
+    private val defaultControlsFf = listOf("btn_macro_gloo", "btn_macro_awm", "target_gloo", "target_crouch", "target_wep1", "target_wep2")
     
     fun defaultControlsForMode(mode: Int): List<String> = when (mode) {
         0 -> defaultControlsGamepad
@@ -270,8 +275,8 @@ class SettingsRepository(private val context: Context) {
     suspend fun addControl(id: String) = context.dataStore.edit { prefs ->
         val mode = prefs[Keys.INPUT_MODE] ?: 0
         val key = Keys.activeControlsKey(mode)
-        val current = (prefs[key] ?: emptySet()).toMutableSet()
-        if (current.isEmpty()) current.addAll(defaultControlsForMode(mode))
+        val current = (prefs[key] ?: defaultControlsForMode(mode).toSet()).toMutableSet()
+        current.remove("__EMPTY__")
         current.add(id)
         prefs[key] = current
     }
@@ -279,9 +284,11 @@ class SettingsRepository(private val context: Context) {
     suspend fun removeControl(id: String) = context.dataStore.edit { prefs ->
         val mode = prefs[Keys.INPUT_MODE] ?: 0
         val key = Keys.activeControlsKey(mode)
-        val current = (prefs[key] ?: emptySet()).toMutableSet()
-        if (current.isEmpty()) current.addAll(defaultControlsForMode(mode))
+        val current = (prefs[key] ?: defaultControlsForMode(mode).toSet()).toMutableSet()
         current.remove(id)
+        if (current.isEmpty()) {
+            current.add("__EMPTY__")
+        }
         prefs[key] = current
     }
     

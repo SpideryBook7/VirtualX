@@ -7,13 +7,14 @@ import android.view.InputDevice
 import android.view.InputEvent
 import android.view.KeyEvent
 import android.view.MotionEvent
-import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuBinderWrapper
 import rikka.shizuku.SystemServiceHelper
+import java.lang.reflect.Method
 
 /**
  * Pure Button Injection Engine (Phase 17).
- * Removed all Mouse/Trackpad injection logic to ensure 100% GFN synergy.
+ * Uses Shizuku reflection to inject MotionEvents (including SOURCE_MOUSE for macros),
+ * KeyEvents, and AxisEvents.
  */
 object VirtualDeviceManager {
     private const val TAG = "VirtualDeviceManager"
@@ -21,68 +22,116 @@ object VirtualDeviceManager {
     private const val VIRTUAL_DEVICE_ID = 9999 
 
     private var iimInstance: Any? = null
-    private var injectMethod: java.lang.reflect.Method? = null
+    private var injectMethod: Method? = null
+    private var touchDownTime: Long = 0L
 
-    fun initialize(packageName: String? = null): Boolean {
-        if (!Shizuku.pingBinder()) {
-            Log.e(TAG, "Shizuku not reachable.")
+    fun initialize(): Boolean {
+        try {
+            val binder = ShizukuBinderWrapper(SystemServiceHelper.getSystemService("input"))
+            val stubClass = Class.forName("android.hardware.input.IInputManager\$Stub")
+            val asInterface = stubClass.getMethod("asInterface", IBinder::class.java)
+            iimInstance = asInterface.invoke(null, binder)
+
+            val iimClass = Class.forName("android.hardware.input.IInputManager")
+            injectMethod = iimClass.methods.firstOrNull { it.name == "injectInputEvent" }
+            return iimInstance != null && injectMethod != null
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize IInputManager via Shizuku", e)
             return false
         }
-        
-        return try {
-            val rawBinder: IBinder = SystemServiceHelper.getSystemService("input")
-                ?: error("null binder for 'input'")
-            val wrapped = ShizukuBinderWrapper(rawBinder)
-            val stubClass = Class.forName("android.hardware.input.IInputManager\$Stub")
-            iimInstance = stubClass
-                .getDeclaredMethod("asInterface", IBinder::class.java)
-                .also { it.isAccessible = true }
-                .invoke(null, wrapped)
-            
-            injectMethod = iimInstance!!.javaClass
-                .getMethod("injectInputEvent", InputEvent::class.java, Int::class.java)
-                .also { it.isAccessible = true }
-            
-            Log.i(TAG, "Pure Injection Engine ready.")
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Input engine init failed", e)
-            false
+    }
+
+    fun stop() {
+        iimInstance = null
+        injectMethod = null
+    }
+
+    private fun getRealTouchscreenDeviceId(): Int {
+        for (id in InputDevice.getDeviceIds()) {
+            val dev = InputDevice.getDevice(id) ?: continue
+            if (!dev.isVirtual && (dev.sources and InputDevice.SOURCE_TOUCHSCREEN) == InputDevice.SOURCE_TOUCHSCREEN) {
+                return id
+            }
         }
+        return VIRTUAL_DEVICE_ID
     }
 
-    fun stop() {}
+    /**
+     * Inject a high-precision multi-touch tap at (x, y).
+     * 1. Primary: Uses AccessibilityService dispatchTap if active (100% zero touch interruption).
+     * 2. Fallback: Uses Shizuku Multi-Touch Protocol (ACTION_POINTER_DOWN / UP for Pointer Index 1).
+     *    By using Pointer Index 1, Android's InputDispatcher maintains Pointer 0 (active joystick/movement)
+     *    without sending ACTION_CANCEL.
+     */
+    fun injectTapAt(x: Float, y: Float, durationMs: Long = 40L) {
+        if (dev.vpad.controller.service.VPadAccessibilityService.dispatchTap(x, y, durationMs)) {
+            return
+        }
 
-    fun injectKeyEvent(action: Int, keyCode: Int, metaState: Int = 0, source: Int = InputDevice.SOURCE_KEYBOARD) {
         val now = SystemClock.uptimeMillis()
-        val event = KeyEvent(now, now, action, keyCode, 0, metaState, VIRTUAL_DEVICE_ID, 0, KeyEvent.FLAG_FROM_SYSTEM, source)
+
+        val props = arrayOf(
+            MotionEvent.PointerProperties().apply {
+                id = 0
+                toolType = MotionEvent.TOOL_TYPE_FINGER
+            }
+        )
+        val coords = arrayOf(
+            MotionEvent.PointerCoords().apply {
+                this.x = x
+                this.y = y
+                pressure = 1.0f
+                size = 1.0f
+            }
+        )
+
+        val eventDown = MotionEvent.obtain(
+            now, now,
+            MotionEvent.ACTION_DOWN,
+            1, props, coords,
+            0, 0, 1f, 1f,
+            VIRTUAL_DEVICE_ID, 0,
+            InputDevice.SOURCE_TOUCHSCREEN, 0
+        )
+        inject(eventDown)
+        eventDown.recycle()
+
+        try { Thread.sleep(durationMs) } catch (e: Exception) {}
+
+        val upTime = SystemClock.uptimeMillis()
+        val eventUp = MotionEvent.obtain(
+            now, upTime,
+            MotionEvent.ACTION_UP,
+            1, props, coords,
+            0, 0, 1f, 1f,
+            VIRTUAL_DEVICE_ID, 0,
+            InputDevice.SOURCE_TOUCHSCREEN, 0
+        )
+        inject(eventUp)
+        eventUp.recycle()
+    }
+
+    fun injectTouchEvent(action: Int, x: Float, y: Float, pointerId: Int = 0) {
+        injectTapAt(x, y)
+    }
+
+    fun injectKeyEvent(action: Int, keyCode: Int, source: Int = InputDevice.SOURCE_KEYBOARD) {
+        val now = SystemClock.uptimeMillis()
+        val event = KeyEvent(now, now, action, keyCode, 0, 0, VIRTUAL_DEVICE_ID, 0, 0, source)
         inject(event)
     }
 
-    fun injectAxisEvent(axisMap: Map<Int, Float>, source: Int = InputDevice.SOURCE_JOYSTICK, buttonState: Int = 0) {
+    fun injectMouseEvent(dx: Float, dy: Float) {
         val now = SystemClock.uptimeMillis()
         val coords = arrayOf(MotionEvent.PointerCoords().apply {
-            axisMap.forEach { (axis, value) -> setAxisValue(axis, value) }
+            x = dx
+            y = dy
         })
-        val props = arrayOf(MotionEvent.PointerProperties().apply { id = 0; toolType = MotionEvent.TOOL_TYPE_UNKNOWN })
-        val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_MOVE, 1, props, coords, 0, buttonState, 1f, 1f, VIRTUAL_DEVICE_ID, 0, source, 0)
-        inject(event)
-        event.recycle()
-    }
-
-    fun injectMouseEvent(dx: Float, dy: Float, buttonState: Int = 0) {
-        val now = SystemClock.uptimeMillis()
-        val coords = arrayOf(MotionEvent.PointerCoords().apply {
-            setAxisValue(MotionEvent.AXIS_RELATIVE_X, dx)
-            setAxisValue(MotionEvent.AXIS_RELATIVE_Y, dy)
+        val props = arrayOf(MotionEvent.PointerProperties().apply {
+            id = 0
+            toolType = MotionEvent.TOOL_TYPE_MOUSE
         })
-        val props = arrayOf(MotionEvent.PointerProperties().apply { id = 0; toolType = MotionEvent.TOOL_TYPE_MOUSE })
-        
-        // SOURCE_MOUSE_RELATIVE (Added in API 26) ensures relative deltas are dispatched cleanly to games like GeForce Now without screen-jumping
-        // Value of InputDevice.SOURCE_MOUSE_RELATIVE is 0x00020004
-        val source = 131076
-        
-        val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_MOVE, 1, props, coords, 0, buttonState, 1f, 1f, VIRTUAL_DEVICE_ID, 0, source, 0)
+        val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_MOVE, 1, props, coords, 0, 0, 1f, 1f, VIRTUAL_DEVICE_ID, 0, InputDevice.SOURCE_MOUSE, 0)
         inject(event)
         event.recycle()
     }
@@ -91,63 +140,33 @@ object VirtualDeviceManager {
         val now = SystemClock.uptimeMillis()
         val action = if (isDown) MotionEvent.ACTION_DOWN else MotionEvent.ACTION_UP
         val buttonState = if (isDown) MotionEvent.BUTTON_PRIMARY else 0
-        
         val coords = arrayOf(MotionEvent.PointerCoords().apply {
             x = 0f
             y = 0f
         })
-        val props = arrayOf(MotionEvent.PointerProperties().apply { id = 0; toolType = MotionEvent.TOOL_TYPE_MOUSE })
-        val source = InputDevice.SOURCE_MOUSE // 8194
-        
-        val event = MotionEvent.obtain(now, now, action, 1, props, coords, 0, buttonState, 1f, 1f, VIRTUAL_DEVICE_ID, 0, source, 0)
+        val props = arrayOf(MotionEvent.PointerProperties().apply {
+            id = 0
+            toolType = MotionEvent.TOOL_TYPE_MOUSE
+        })
+        val event = MotionEvent.obtain(now, now, action, 1, props, coords, 0, buttonState, 1f, 1f, VIRTUAL_DEVICE_ID, 0, InputDevice.SOURCE_MOUSE, 0)
         inject(event)
         event.recycle()
     }
-    private var touchDownTime: Long = 0L
-    private val pointerDownTimes = mutableMapOf<Int, Long>()
 
-    private fun getTouchDeviceId(): Int {
-        for (id in InputDevice.getDeviceIds()) {
-            val dev = InputDevice.getDevice(id)
-            if (dev != null && dev.supportsSource(InputDevice.SOURCE_TOUCHSCREEN)) {
-                return id
-            }
-        }
-        return 0
-    }
-
-    fun injectTouchEvent(action: Int, x: Float, y: Float, pointerId: Int = 11) {
+    fun injectAxisEvent(axes: Map<Int, Float>, source: Int = InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_JOYSTICK) {
         val now = SystemClock.uptimeMillis()
-        
-        val downTime = if (action == MotionEvent.ACTION_DOWN) {
-            pointerDownTimes[pointerId] = now
-            touchDownTime = now
-            now
-        } else {
-            pointerDownTimes[pointerId] ?: touchDownTime
-        }
-        
         val coords = arrayOf(MotionEvent.PointerCoords().apply {
-            this.x = x
-            this.y = y
-            pressure = 1.0f
-            size = 1.0f
+            axes.forEach { (axis, value) -> setAxisValue(axis, value) }
         })
-        val props = arrayOf(MotionEvent.PointerProperties().apply { 
-            id = pointerId
-            toolType = MotionEvent.TOOL_TYPE_FINGER 
+        val props = arrayOf(MotionEvent.PointerProperties().apply {
+            id = 0
+            toolType = MotionEvent.TOOL_TYPE_UNKNOWN
         })
-        val source = InputDevice.SOURCE_TOUCHSCREEN
-        
-        val deviceId = getTouchDeviceId()
-        val event = MotionEvent.obtain(downTime, now, action, 1, props, coords, 0, 0, 1f, 1f, deviceId, 0, source, 0)
+        val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_MOVE, 1, props, coords, 0, 0, 1f, 1f, VIRTUAL_DEVICE_ID, 0, source, 0)
         inject(event)
         event.recycle()
-        
-        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-            pointerDownTimes.remove(pointerId)
-        }
     }
+
     private fun inject(event: InputEvent) {
         val method = injectMethod ?: return
         val instance = iimInstance ?: return
@@ -157,4 +176,4 @@ object VirtualDeviceManager {
             Log.e(TAG, "Injection error", e)
         }
     }
-}
+}

@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -142,7 +143,7 @@ fun AtomicControl(
                 else Box(modifier = Modifier.size(1.dp))
         }
         
-        if (editMode) {
+        if (editMode && !(id.startsWith("target_") && !editMode)) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -168,6 +169,7 @@ fun TogglePill(
     onToggleVisibility: (Boolean) -> Unit,
     onToggleEditMode: (Boolean) -> Unit,
     onUpdateInputMode: (Int) -> Unit,
+    onHidePill: () -> Unit = {},
     onAddControl: (String) -> Unit = {},
     onDrag: (Offset) -> Unit,
     onDragEnd: () -> Unit,
@@ -180,18 +182,32 @@ fun TogglePill(
 
     val editMode = settings.editMode
     var showMenu by remember { mutableStateOf(false) }
+    val isExpanded = showMenu || editMode
 
     Box(
         modifier = Modifier
-            .width(if (showMenu || editMode) 220.dp else 120.dp)
-            .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp, topStart = 8.dp, topEnd = 8.dp))
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xE612121A),
-                        Color(0xDD1A1A24)
-                    )
-                )
+            .then(
+                if (isExpanded) {
+                    Modifier
+                        .width(240.dp)
+                        .clip(RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp, topStart = 8.dp, topEnd = 8.dp))
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xEE12121A),
+                                    Color(0xDD1A1A24)
+                                )
+                            )
+                        )
+                        .border(1.dp, Color(0x4400FFCC), RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp, topStart = 8.dp, topEnd = 8.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                } else {
+                    Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(Color(0x6612121A))
+                        .border(1.dp, Color(0x5500FFCC), CircleShape)
+                }
             )
             .pointerInput(Unit) {
                 detectDragGestures(onDragEnd = onDragEnd) { change, dragAmount ->
@@ -202,8 +218,7 @@ fun TogglePill(
             }
             .pointerInput(editMode, isVisible) {
                 detectTapGestures(onTap = { if (!editMode) showMenu = !showMenu })
-            }
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            },
         contentAlignment = Alignment.Center
     ) {
         if (editMode) {
@@ -248,16 +263,19 @@ fun TogglePill(
                 }
                 HorizontalDivider(color = Color.DarkGray.copy(alpha = 0.5f), modifier = Modifier.fillMaxWidth())
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                    TextButton(onClick = { showMenu = false; onToggleVisibility(!isVisible) }, contentPadding = PaddingValues(horizontal = 4.dp)) {
-                        Text(if (isVisible) "👁️ Ocultar" else "👁️ Mostrar", color = Color.White, fontSize = 12.sp)
+                    TextButton(onClick = { showMenu = false; onToggleVisibility(!isVisible) }, contentPadding = PaddingValues(horizontal = 2.dp)) {
+                        Text(if (isVisible) "👁️ Ocultar" else "👁️ Ver", color = Color.White, fontSize = 11.sp)
                     }
-                    TextButton(onClick = { showMenu = false; onToggleEditMode(true) }, contentPadding = PaddingValues(horizontal = 4.dp)) {
-                        Text("✏️ Editar", color = Color(0xFF00D4FF), fontSize = 12.sp)
+                    TextButton(onClick = { showMenu = false; onToggleEditMode(true) }, contentPadding = PaddingValues(horizontal = 2.dp)) {
+                        Text("✏️ Editar", color = Color(0xFF00D4FF), fontSize = 11.sp)
+                    }
+                    TextButton(onClick = { showMenu = false; onHidePill() }, contentPadding = PaddingValues(horizontal = 2.dp)) {
+                        Text("🚫 Pill", color = Color(0xFFFF4444), fontSize = 11.sp)
                     }
                 }
             }
         } else {
-            Text("V-PAD", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+            Text("⚙", color = Color.White.copy(alpha = 0.75f), fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -508,25 +526,29 @@ fun MacroButton(
     val screenH = dm.heightPixels.toFloat()
     val density = dm.density
 
+    val targetRadius = 24f * scale * density
+
     // Target gloo
-    val glooOffset = settings.layoutOffsets["target_gloo"] ?: Pair(screenW * 0.10f, screenH * 0.80f)
-    val glooX = glooOffset.first + 24f * density
-    val glooY = glooOffset.second + 24f * density
+    val glooOffset = settings.layoutOffsets["target_gloo"] ?: Pair(screenW * 0.18f, screenH * 0.60f)
+    val glooX = glooOffset.first + targetRadius
+    val glooY = glooOffset.second + targetRadius
 
     // Target crouch
-    val crouchOffset = settings.layoutOffsets["target_crouch"] ?: Pair(screenW * 0.85f, screenH * 0.85f)
-    val crouchX = crouchOffset.first + 24f * density
-    val crouchY = crouchOffset.second + 24f * density
+    val crouchOffset = settings.layoutOffsets["target_crouch"] ?: Pair(screenW * 0.88f, screenH * 0.82f)
+    val crouchX = crouchOffset.first + targetRadius
+    val crouchY = crouchOffset.second + targetRadius
 
     // Target weapon 1
-    val wep1Offset = settings.layoutOffsets["target_wep1"] ?: Pair(screenW * 0.60f, screenH * 0.10f)
-    val wep1X = wep1Offset.first + 24f * density
-    val wep1Y = wep1Offset.second + 24f * density
+    val wep1Offset = settings.layoutOffsets["target_wep1"] ?: Pair(screenW * 0.72f, screenH * 0.08f)
+    val wep1X = wep1Offset.first + targetRadius
+    val wep1Y = wep1Offset.second + targetRadius
 
     // Target weapon 2
-    val wep2Offset = settings.layoutOffsets["target_wep2"] ?: Pair(screenW * 0.70f, screenH * 0.10f)
-    val wep2X = wep2Offset.first + 24f * density
-    val wep2Y = wep2Offset.second + 24f * density
+    val wep2Offset = settings.layoutOffsets["target_wep2"] ?: Pair(screenW * 0.84f, screenH * 0.08f)
+    val wep2X = wep2Offset.first + targetRadius
+    val wep2Y = wep2Offset.second + targetRadius
+
+    val scope = rememberCoroutineScope()
 
     Box(
         modifier = Modifier
@@ -537,44 +559,36 @@ fun MacroButton(
             .border(2.dp, if (isPressed) Color.White else accentColor, CircleShape)
             .pointerInput(isEditMode) {
                 if (!isEditMode) {
-                    detectTapGestures(
-                        onPress = { _ ->
-                            isPressed = true
-                            if (hapticsEnabled) {
-                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                                    vibrator.vibrate(android.os.VibrationEffect.createOneShot(20, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
-                                } else {
-                                    @Suppress("DEPRECATION")
-                                    vibrator.vibrate(20)
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val down = event.changes.any { it.pressed }
+                            if (down && !isPressed) {
+                                isPressed = true
+                                if (hapticsEnabled) {
+                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                        vibrator.vibrate(android.os.VibrationEffect.createOneShot(20, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                                    } else {
+                                        @Suppress("DEPRECATION")
+                                        vibrator.vibrate(20)
+                                    }
                                 }
-                            }
-                            withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                if (isGloo) {
-                                    inputProcessor.injectTouch(android.view.MotionEvent.ACTION_DOWN, glooX, glooY, 12)
-                                    kotlinx.coroutines.delay(15)
-                                    inputProcessor.injectTouch(android.view.MotionEvent.ACTION_UP, glooX, glooY, 12)
-                                    
-                                    kotlinx.coroutines.delay(25)
-                                    
-                                    inputProcessor.injectTouch(android.view.MotionEvent.ACTION_DOWN, crouchX, crouchY, 13)
-                                    kotlinx.coroutines.delay(15)
-                                    inputProcessor.injectTouch(android.view.MotionEvent.ACTION_UP, crouchX, crouchY, 13)
-                                } else {
-                                    inputProcessor.injectTouch(android.view.MotionEvent.ACTION_DOWN, wep1X, wep1Y, 14)
-                                    kotlinx.coroutines.delay(15)
-                                    inputProcessor.injectTouch(android.view.MotionEvent.ACTION_UP, wep1X, wep1Y, 14)
-                                    
-                                    kotlinx.coroutines.delay(35)
-                                    
-                                    inputProcessor.injectTouch(android.view.MotionEvent.ACTION_DOWN, wep2X, wep2Y, 15)
-                                    kotlinx.coroutines.delay(15)
-                                    inputProcessor.injectTouch(android.view.MotionEvent.ACTION_UP, wep2X, wep2Y, 15)
+                                scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                    if (isGloo) {
+                                        dev.vpad.controller.input.VirtualDeviceManager.injectTapAt(glooX, glooY, 40L)
+                                        kotlinx.coroutines.delay(140L)
+                                        dev.vpad.controller.input.VirtualDeviceManager.injectTapAt(crouchX, crouchY, 40L)
+                                    } else {
+                                        dev.vpad.controller.input.VirtualDeviceManager.injectTapAt(wep1X, wep1Y, 40L)
+                                        kotlinx.coroutines.delay(140L)
+                                        dev.vpad.controller.input.VirtualDeviceManager.injectTapAt(wep2X, wep2Y, 40L)
+                                    }
                                 }
+                            } else if (!down && isPressed) {
+                                isPressed = false
                             }
-                            tryAwaitRelease()
-                            isPressed = false
                         }
-                    )
+                    }
                 }
             },
         contentAlignment = Alignment.Center

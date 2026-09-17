@@ -136,6 +136,33 @@ fun SettingsScreen(
                     formatted = { "%.1f".format(it) },
                     onChanged = { scope.launch { repo.updateCurveExponent(it) } }
                 )
+                val isAccessibilityActive = dev.vpad.controller.service.VPadAccessibilityService.isEnabled()
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Macro Smooth Touch (Accessibility)", color = VPadOnSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            if (isAccessibilityActive) "Active ✓ (Zero Touch Interruption)"
+                            else "Enable V-PAD Accessibility Service for 100% smooth movement during macros",
+                            color = if (isAccessibilityActive) Color(0xFF00FFCC) else VPadOnSurface.copy(alpha = 0.5f),
+                            fontSize = 11.sp
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                            context.startActivity(intent)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isAccessibilityActive) Color(0xFF333344) else VPadPrimary
+                        )
+                    ) {
+                        Text(if (isAccessibilityActive) "Active" else "Enable", fontSize = 12.sp)
+                    }
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -168,7 +195,21 @@ fun SettingsScreen(
                     formatted = { "%.0f%%".format(it * 100) },
                     onChanged = { scope.launch { repo.updateButtonScale(it) } }
                 )
-                // Input Profile switch removed from here and moved to a dedicated section
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Show Floating Pill Button", color = VPadOnSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text("Show or hide the floating settings button", color = VPadOnSurface.copy(alpha = 0.5f), fontSize = 11.sp)
+                    }
+                    Switch(
+                        checked = settings.showPill,
+                        onCheckedChange = { scope.launch { repo.updateShowPill(it) } },
+                        colors = SwitchDefaults.colors(checkedThumbColor = VPadPrimary, checkedTrackColor = VPadPrimary.copy(alpha = 0.3f))
+                    )
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,

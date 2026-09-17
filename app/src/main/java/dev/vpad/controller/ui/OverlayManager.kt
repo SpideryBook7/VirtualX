@@ -100,10 +100,15 @@ class OverlayManager(
                 } else {
                     removeAllControls()
                 }
+
+                if (!settings.showPill) {
+                    pillView?.let { try { windowManager.removeView(it) } catch (e: Exception) {} }
+                    pillView = null
+                } else if (pillView == null) {
+                    createPill()
+                }
             }
         }
-
-        if (pillView == null) createPill()
     }
 
     private fun getRealScreenSize(): Point {
@@ -123,7 +128,7 @@ class OverlayManager(
         val mode = currentSettings.value.inputMode
         val defaults = defaultControlsForMode(mode)
 
-        val rawActiveIds = if (currentSettings.value.activeControls.isEmpty()) defaults else currentSettings.value.activeControls
+        val rawActiveIds = currentSettings.value.activeControls.filter { it != "__EMPTY__" }
         val activeIds = if (currentSettings.value.editMode) {
             rawActiveIds
         } else {
@@ -289,6 +294,7 @@ class OverlayManager(
                     },
                     onToggleEditMode = { scope.launch { repo.toggleEditMode(it) } },
                     onUpdateInputMode = { mode -> scope.launch { repo.updateInputMode(mode) } },
+                    onHidePill = { scope.launch { repo.updateShowPill(false) } },
                     onAddControl = { id -> 
                         scope.launch { repo.addControl(id) } 
                     },
@@ -366,10 +372,10 @@ class OverlayManager(
             
             "btn_macro_gloo" -> Pair(w * 0.15f, h * 0.20f)
             "btn_macro_awm"  -> Pair(w * 0.15f, h * 0.35f)
-            "target_gloo"    -> Pair(w * 0.10f, h * 0.80f)
-            "target_crouch"  -> Pair(w * 0.85f, h * 0.85f)
-            "target_wep1"    -> Pair(w * 0.60f, h * 0.10f)
-            "target_wep2"    -> Pair(w * 0.70f, h * 0.10f)
+            "target_gloo"    -> Pair(w * 0.18f, h * 0.60f)
+            "target_crouch"  -> Pair(w * 0.88f, h * 0.82f)
+            "target_wep1"    -> Pair(w * 0.72f, h * 0.08f)
+            "target_wep2"    -> Pair(w * 0.84f, h * 0.08f)
             
             else -> Pair(w / 2f, h / 2f)
         }
